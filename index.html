@@ -1,17 +1,18 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>小众视频生成商业机会研究</title><link rel="stylesheet" href="assets/style.css"><style>.hero{padding:56px 0 18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px}.card{border:1px solid #dfe4ea;border-radius:14px;padding:20px;background:#fff}.tag{display:inline-block;background:#eef4ff;color:#174ea6;border-radius:999px;padding:3px 9px;margin:2px;font-size:12px}.card a{font-weight:700}.lead{font-size:1.14rem;color:#334155}.note{background:#fff8e7;border-left:4px solid #e5a11a;padding:14px 18px;border-radius:8px}</style></head>
-<body><main class="wrap"><section class="hero"><h1>小众视频生成商业机会研究</h1><p class="lead">从“生成一段好看的视频”转向“同一套正确内容，低成本地持续改版、复用和审校”。覆盖 6 个小众场景、10 篇核心论文与现实商业需求证据。</p><div class="note"><strong>阅读说明：</strong>商业案例、论文实测和产品设计推演分别标注。已用 One Sentence, One Drama 替换 MovieAgent，并新增 SAGE、VerseCrafter 与 4Director；商用许可和资源公开状态见各篇报告。</div></section>
-<section><h2>商业机会与论文详细版</h2><p>单篇报告按“问题与研究脉络 → 方法与公式 → 具体例子 → 实验与消融 → 局限 → 复现资源”展开。想先把十篇论文的关系理清，可从技术路线对照页开始。</p><div class="grid">
+<body><main class="wrap"><section class="hero"><h1>小众视频生成商业机会研究</h1><p class="lead">从“生成一段好看的视频”转向“同一套正确内容，低成本地持续改版、复用和审校”。覆盖 6 个主要小众场景、11 篇核心论文，并扩展特效定制候选方向。</p><div class="note"><strong>阅读说明：</strong>商业案例、论文实测和产品设计推演分别标注。本轮新增 EffectMaker 的参考驱动特效定制；商用许可和资源公开状态见各篇报告。</div></section>
+<section><h2>商业机会与论文详细版</h2><p>单篇报告按“问题与研究脉络 → 方法与公式 → 具体例子 → 实验与消融 → 局限 → 复现资源”展开。想先把十一篇论文的关系理清，可从技术路线对照页开始。</p><div class="grid">
 <article class="card"><span class="tag">主报告</span><h3><a href="comparisons/commercial-opportunities.html">6 个小众场景与落地路线</a></h3><p>客户、触发条件、MVP、定价单位、论文映射、风险和 90 天试点优先级。</p></article>
 <article class="card"><span class="tag">核心论文</span><h3><a href="reports/soap2soap.html">Soap2Soap</a></h3><p>长视频重制、多智能体、双桥一致性与逐镜头质检。</p></article>
 <article class="card"><span class="tag">替换篇目 · arXiv 2026</span><h3><a href="reports/one-sentence-one-drama.html">One Sentence, One Drama</a></h3><p>一句创意到完整短剧：剧本辩论、共享三维首帧、多阶段审核与后期。</p></article>
 <article class="card"><span class="tag">新增 · arXiv 2026</span><h3><a href="reports/sage-storyboard.html">SAGE</a></h3><p>从导演示范提炼分镜规则，通过采用记录归因、演化规则并按场景路由。</p></article>
 <article class="card"><span class="tag">新增 · CVPR 2026</span><h3><a href="reports/versecrafter.html">VerseCrafter</a></h3><p>背景点云与对象Gaussian统一控制相机和多对象运动；公开资源仅限学术用途。</p></article>
 <article class="card"><span class="tag">新增 · arXiv 2026</span><h3><a href="reports/4director.html">4Director</a></h3><p>完整对象mesh与刚体轨迹控制转向、遮挡和运镜，深度视频驱动Motion Adapter。</p></article>
+<article class="card"><span class="tag">CVPR 2026 · 特效定制</span><h3><a href="reports/effectmaker.html">EffectMaker</a></h3><p>参考特效视频＋目标图像，通过语义推理和视觉上下文双路径迁移特效，免逐特效微调。</p></article>
 <article class="card"><span class="tag">工业教程</span><h3><a href="reports/showhowto.html">ShowHowTo</a></h3><p>依据用户现场图片生成分步视觉操作指引。</p></article>
 <article class="card"><span class="tag">无障碍</span><h3><a href="reports/neural-sign-actors.html">Neural Sign Actors</a></h3><p>从文本生成连续 3D 手语动作，面向公共信息与内容本地化。</p></article>
 <article class="card"><span class="tag">特殊教育</span><h3><a href="reports/ss-bench.html">SS-Bench / SS-GEN</a></h3><p>受约束的 Social Story 生成与评测，可作为个性化视频脚本层。</p></article>
 <article class="card"><span class="tag">长视频规划</span><h3><a href="reports/videodirectorgpt.html">VideoDirectorGPT</a></h3><p>LLM 视频计划、布局控制与跨场景实体一致性。</p></article>
 <article class="card"><span class="tag">安全模拟</span><h3><a href="reports/cosmos-drive-dream.html">Cosmos-Drive-Dreams</a></h3><p>生成可控、多视角的罕见驾驶边缘场景，用于训练与测试。</p></article>
-<article class="card"><span class="tag">详细版导读</span><h3><a href="comparisons/technical-roadmap.html">十篇论文的技术关系与选型</a></h3><p>叙事编排、分镜技能、几何执行与垂直任务的分工，以及可复现和可商用的区别。</p></article>
+<article class="card"><span class="tag">详细版导读</span><h3><a href="comparisons/technical-roadmap.html">十一篇论文的技术关系与选型</a></h3><p>叙事编排、分镜技能、几何执行、特效定制与垂直任务的分工。</p></article>
 </div></section><section><h2>推荐阅读顺序</h2><ol><li>先看商业机会总览，选出 1–2 个试点。</li><li>看对应论文报告，确认论文验证了什么、没验证什么。</li><li>按主报告中的 90 天方案采集客户素材，先做人工审校闭环。</li></ol></section></main></body></html>

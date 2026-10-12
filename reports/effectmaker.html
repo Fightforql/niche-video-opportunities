@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EffectMaker — 参考驱动的特效定制与商业迁移</title><link rel="stylesheet" href="../assets/style.css"><script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$'],['\\[','\\]']]}};</script><script async src="../assets/vendor/mathjax/tex-mml-chtml.js"></script><script src="../assets/vendor/mermaid.min.js"></script><script>mermaid.initialize({startOnLoad:true,theme:'neutral'});</script></head><body>
+<header class="meta-bar"><a class="back-to-index" href="../index.html">← 返回索引</a><h1>EffectMaker: Unifying Reasoning and Generation for Customized Visual Effect Creation</h1><div class="authors">Shiyuan Yang、Ruihuang Li、Jiale Tao、Shuai Shao、Qinglin Lu、Jing Liao · 腾讯混元 / 香港城市大学 · CVPR 2026，pp. 16108–16117 · arXiv v1：2026-03-06 · 资源核查：2026-10-12</div><nav class="meta-links"><a href="https://arxiv.org/abs/2603.06014">论文信息</a><a href="https://arxiv.org/pdf/2603.06014">PDF</a><a href="https://arxiv.org/html/2603.06014v1">原文 HTML</a><a href="https://effectmaker.github.io/">官方演示</a><a href="https://github.com/ysy31415/EffectMaker">官方代码（占位）</a><a href="https://huggingface.co/datasets/ysy31415926/EffectData">EffectData 数据</a><span class="disabled">训练权重：未找到官方发布</span></nav></header>
+<nav class="toc-float"><strong>目录</strong><ol><li><a href="#speedread">5 分钟速读</a></li><li><a href="#motivation">问题与动机</a></li><li><a href="#lineage">研究脉络</a></li><li><a href="#bigpicture">方法总览</a></li><li><a href="#notation">符号表</a></li><li><a href="#method">方法与公式</a></li><li><a href="#walkthrough">走一遍例子</a></li><li><a href="#experiments">实验与消融</a></li><li><a href="#visualization">怎么看演示</a></li><li><a href="#limitations">失败与边界</a></li><li><a href="#commercial">商业迁移</a></li><li><a href="#faq">常见疑问</a></li><li><a href="#reproduction">复现与资源</a></li><li><a href="#glossary">术语表</a></li></ol></nav>
+<main class="wrap">
+<section id="speedread"><h2>5 分钟速读</h2><div class="callout good"><ul><li><strong>一句话：</strong>给它一段参考特效视频和一张新主体图片，生成让新主体呈现相似效果的短片，无需为每个新特效另训一个 LoRA。</li><li><strong>痛点：</strong>“像样片这样变身”包含形态、附着位置与时间变化，单靠提示词会丢细节，单靠视觉又容易搬错主体。</li><li><strong>做法：</strong>Qwen 提供理解与适配描述，Wan 同时直接读取参考视频；语义条件用解耦 cross-attention 注入，参考与目标用双流 self-attention 交流。</li><li><strong>证据：</strong>14 类闭集测试的 VQ、MQ、TA、CAS 均值领先，但部分单类落后。未见效果的证据包含定性案例和类别规模消融，不等于任意特效可稳定迁移。</li><li><strong>落地：</strong>更适合舞台提案、游戏角色展示、展馆与密室短片等允许挑选修整的素材服务。EffectData 已公开；完整代码与训练权重尚未公开，不能视为即装即用产品。</li></ul></div>
+<div class="keynum-row"><div class="keynum"><div class="n">4.63 / 5</div><div class="cap">闭集平均特效类别评分 CAS</div></div><div class="keynum"><div class="n">约 13 万</div><div class="cap">论文口径视频数 / 3000 类效果</div></div><div class="keynum"><div class="n">约 2 分钟</div><div class="cap">H20 上生成阶段，不含筛选与返工</div></div></div>
+<figure><div class="mermaid">flowchart LR
+ R[参考特效视频] --> M[语义理解与适配描述]
+ I[新主体图片] --> M
+ R --> V[参考视觉上下文]
+ M --> G[Wan 双条件生成]
+ V --> G
+ I --> G
+ G --> O[新主体的特效视频]
+ O -. 产品侧另补 .-> Q[身份 / 效果 / 交付审核]
+</div><figcaption>核心一张图：参考同时进入理解端和视觉生成端；虚线审核是本报告的产品建议，非论文已实现的商用系统。图依据论文重绘。原 PDF 受当前下载条件限制未能精确抽取原图；本页采用结构重绘、数值重绘与官方演示链接，不把示意图当真实生成结果。</figcaption></figure></section>
+<section id="tldr"><div class="tldr"><div class="label">TL;DR</div><p>EffectMaker 将特效定制从“为每个效果训练参数”推进到“使用时直接读取示例”。它没有把视频压缩成文字后就丢弃参考，而是让理解与推理提供语义，让参考 token 提供细节，再通过双流注意力迁移到新主体。EffectData 为这种同效果、跨主体的学习提供大规模合成数据。实验支持双条件与分流投影的有效性，但不证明严格身份保持、可编辑粒子资产或复杂多镜头生产。它为现有调研增加了特效表现层，与叙事编排和几何控制互补。</p></div></section>
+<section id="motivation">
+<h2>问题与动机：把“我想要这个效果”变成可迁移的示例</h2>
+<p>EffectMaker 的标准输入是一段参考特效视频和一张目标主体图片，输出是在新主体上呈现相似特效的视频。任务的难点并非仅仅生成火焰、烟雾或闪光，而是把参考中的变化方式保留下来，同时让变化适应新主体的形状。参考可能是一位人物身边先出现环形光带、再向外扩散；目标可能换成一只宠物。系统需要抽取可迁移的效果，避免把参考人物的长相、服装和背景一并照搬。<a href="https://arxiv.org/html/2603.06014v1#S3">原文 §3</a></p>
+<div class="intuition"><strong>直觉：</strong>顾客给特效师看一段样片，说“我要类似这种出场方式，主角换成我的吉祥物”。只给一句“金色魔法”无法说明光从哪里出现、运动顺序如何、包围主体还是覆盖主体；直接复制样片像素又可能把原人物一起带过来。理想助手先理解“发生了什么”，再观察“具体怎么发生”。</div>
+<p>这里存在两种信息损失。第一种是<strong>语言压缩损失</strong>：把整段参考视频写成提示词，颜色、几何结构、运动节奏会被概括掉。第二种是<strong>视觉迁移歧义</strong>：仅让生成器读取参考视觉特征，模型可能更容易复现颜色和纹理，却不知道哪部分是特效、哪部分只是参考主体。EffectMaker 的核心设计是让语义理解和视觉示例共同约束生成，并为参考与目标保留不同的表示通道。</p>
+<p class="bridge">因此，下面的脉络不是“更大的视频模型自动解决一切”，而是控制信息逐渐从人工提示、专用参数，转向可以直接阅读的视觉示例。</p>
+</section>
+<section id="lineage"><h2>相关工作与发展脉络</h2>
+<p>在作者讨论的路线中，MagicVFX 倾向于在指定区域转移参考内容，再通过生成过程细化；这种思路直观，但不同主体和不同构图之间需要处理对应关系。VFXCreator 为不同特效训练 LoRA，把效果沉淀进专用参数；Omni-Effects 用 LoRA-MoE 组织多个效果，缓解独立模型管理问题。它们对应的是“先把效果做成一个可调用的参数模块”。</p>
+<p>Video-as-Prompt、VFXMaster 与 EffectMaker 更接近“把参考视频当作临时示范”的路线：生成时读取示例，而不是每新增一种效果就重新制作一套特效参数。EffectMaker 进一步加入 MLLM，对示例与新主体之间的适配关系进行语义分析。应注意这些是<strong>任务思路上的关系</strong>；Video-as-Prompt 与 VFXMaster 在本文中被称为同期工作，不能画成已经证实的单向继承链。<a href="https://arxiv.org/html/2603.06014v1#S2">原文 §2</a></p>
+<pre class="mermaid">flowchart LR
+ A[MagicVFX：区域内容迁移] --> D[研究问题：效果如何跨主体迁移]
+ B[VFXCreator：每效果 LoRA] --> C[Omni-Effects：组织多类 LoRA]
+ C --> D
+ E[Video-as-Prompt / VFXMaster：参考示例条件] --> D
+ D --> F[EffectMaker：语义理解与视觉示例双条件]
+</pre>
+<p>另一个相关脉络是理解与生成的结合。作者选择 MLLM 加扩散生成器的混合结构：理解模型负责抽象、适配和描述，视频 DiT 负责连续视觉细节。这里的“统一”是一个协同框架，并不意味着 Qwen 和 Wan 已合并成同一个 Transformer，也不意味着文字模型直接逐像素生成视频。</p>
+</section>
+<section id="bigpicture"><h2>方法总览：语义告诉它“做什么”，示例告诉它“怎么动”</h2>
+<p>理解端采用 Qwen3-VL-8B，接收系统提示、用户指令、参考视频和目标图片。生成端采用 Wan2.2-TI2V-5B。参考内容进入两条路径：语义路径提炼特效的含义和迁移方式；视觉路径保留参考的时空细节。目标图片提供待保留的主体与起始画面。最终生成器在这些条件共同约束下生成目标视频。</p>
+<p>语义路径内部还区分两类信号。一类来自 MLLM 最后一层的隐藏状态，概括输入中可感知的多模态信息；另一类来自它自回归生成的分析描述，表达对“效果应该如何作用到新主体”的推断。后者的文字再经 Wan 原有的 T5 文本编码器处理。两类特征通过独立的 cross-attention 分支注入目标视频 token，避免先混成一串后失去各自的表示特点。<a href="https://arxiv.org/html/2603.06014v1#S3.S2">原文 §3.2–3.3</a></p>
+<pre class="mermaid">flowchart TD
+ R[参考特效视频] --> M[Qwen3-VL-8B]
+ I[目标主体图片] --> M
+ U[用户迁移指令] --> M
+ M --> H[输入理解隐藏状态]
+ M --> P[自回归分析描述]
+ H --> C[轻量连接器 / 理解条件]
+ P --> T[T5 / 文字条件]
+ R --> V[共享 VAE 编码器]
+ I --> V
+ V --> D[参考与目标双流 DiT]
+ C --> X[仅作用于目标的解耦 cross-attention]
+ T --> X
+ X --> D
+ D --> O[目标特效视频]
+</pre>
+<p><strong>一句话核心：</strong>既不要让文字替代全部参考细节，也不要让视觉示例替代对迁移任务的理解；让两种条件在生成器中各司其职，再通过双流注意力建立联系。</p>
+<p class="bridge">理解这个分工后，公式中的“双流”就容易解释了：它既允许参考与目标交流，也保留了两者不同的身份。</p>
+</section>
+<section id="notation"><h2>符号表：原文符号与教学记法分开</h2>
+<div class="table-wrap"><table class="notation"><thead><tr><th>符号</th><th>含义与形状</th><th>出处</th></tr></thead><tbody>
+<tr><td>下标 \(r,t\)</td><td>分别表示参考流 reference 与目标流 target；式 (1) 的 \(t\) 不是扩散时间步</td><td>原文式 (1)</td></tr>
+<tr><td>\(Q_r,K_r,V_r\)</td><td>参考 token 的查询、键、值；按单头教学记法可写为 \(N_r\times d\)，具体维数原文未列出</td><td>原文式 (1)</td></tr>
+<tr><td>\(Q_t,K_t,V_t\)</td><td>目标 token 的查询、键、值；对应 \(N_t\times d\)，\(N_t\) 可不同于 \(N_r\)</td><td>原文式 (1)</td></tr>
+<tr><td>\(O_r,O_t\)</td><td>两条流的注意力输出；长度分别保持 \(N_r,N_t\)</td><td>原文式 (1)</td></tr>
+<tr><td>\([A;B]\)</td><td>沿 token 序列长度维拼接，不是把通道相加</td><td>原文式 (1)</td></tr>
+<tr><td>\(\mathrm{SA}\)</td><td>self-attention 运算；在此对拼接后的参考与目标序列进行双向交互</td><td>原文式 (1)</td></tr>
+<tr><td>\(N_r,N_t,d\)</td><td>参考/目标 token 数与单头特征维数；用于解释形状，不是论文新增超参数</td><td>本报告教学记法</td></tr>
+<tr><td>\(H,R,C_H,C_R\)</td><td>理解隐藏状态、生成的分析文字，以及它们各自编码后的条件表示</td><td>本报告教学记法</td></tr>
+<tr><td>\(\Delta\)</td><td>参考时间坐标相对目标的常量偏移；正文未给出具体数值</td><td>本报告对 biased RoPE 的解释记法</td></tr>
+<tr><td>\(t,T,z\)</td><td>式 (2) 中分别是采样时间步、总时间步数、标准正态随机变量；这里的 \(t\) 与目标流下标不同</td><td>附录式 (2)</td></tr>
+</tbody></table></div>
+</section>
+<section id="method"><h2>方法详解</h2>
+<h3>1. 理解隐藏状态与生成文字：两个条件到底差在哪里？</h3>
+<div class="intuition">“看懂样片”与“解释该怎么改”是两件事。第一种表示可以知道画面里有人、绿色光带和旋转结构；第二种描述才需要回答：目标换成宠物以后，光带应该环绕躯干，而不是机械地贴在参考人物手臂的位置。</div>
+<p>作者将一次输入前向计算得到的最后层隐藏状态称为 semantic-understanding features。它们包含输入语义，但这种提取本身没有完成对迁移结果的自回归描述。于是再让 MLLM 生成分析文字，提取 semantic-reasoning features，补充对目标效果的推断。实际注入时，这段推理文字由原有 T5 编码器编码，理解特征则经轻量连接模块适配特征空间。不能把两者都写成“从同一批隐藏状态直接接两根线”，也不能把后一条误称为对视频模型内部思维过程的可验证解释。</p>
+<div class="eq-card"><h4>解释性记法：两种语义条件</h4><p>\[C_H=\operatorname{Connector}(H),\qquad C_R=\operatorname{T5}(R)\]</p><p><strong>是什么：</strong>这不是原文编号公式，而是对 §3.2–3.3 的数据流总结。\(H\) 表示输入理解特征，\(R\) 表示生成的分析文字，\(C_H,C_R\) 是供 DiT 使用的两类条件。</p><p><strong>为什么：</strong>MLLM 隐状态与 DiT 条件空间不天然一致；轻量连接器承担对接。T5 则沿用基座的视频文字条件入口。连接器具体层宽等细节不能凭“轻量”二字推定。</p></div>
+
+<h3>2. 解耦 cross-attention：同一个问题，分别问两种信息源</h3>
+<div class="intuition">目标生成器可以同时问：“这个效果应该表达什么？”和“新主体应该怎样变化？”但若先把两类资料混成同一份表示，难以保留不同来源的特征。解耦分支相当于分开查阅两份资料，再合并答复。</div>
+<p>两条 cross-attention 分支共享来自目标视频 token 的 query 表示，却为文字条件和理解条件使用不同的 key/value 投影；最后将两条分支的输出直接相加。这里的“共享 query”与后文参考/目标双流采用不同 Q/K/V 投影，是<strong>两个注意力模块里的不同设计</strong>，不能互相替代。</p>
+<div class="eq-card"><h4>解释性记法：解耦分支输出相加</h4><p>\[Y_t=\operatorname{Attn}(Q_t,K_H,V_H)+\operatorname{Attn}(Q_t,K_R,V_R)\]</p><p><strong>逐符号：</strong>\(Y_t\) 是语义条件对目标流的更新；\(Q_t\) 来自目标 token；\(K_H,V_H\) 来自理解条件，\(K_R,V_R\) 来自文字条件。这个公式用于教学，论文正文用文字说明该机制，没有给它编号，也未在这里宣称额外可学习权重。</p><p><strong>为什么只更新目标：</strong>作者明确只在目标 token 与语义条件之间执行 cross-attention，以免参考流受生成目标语义影响。参考应提供可信示范，而不是也被改写成目标主体。</p></div>
+
+<h3>3. 双流 in-context attention：参考与目标能互看，但不共用投影</h3>
+<div class="intuition">同一会议中，一人拿着已经拍好的样片，另一人拿着尚未完成的草稿。他们需要互相交流，但不能把样片中的清晰内容和草稿中的噪声当成同一种输入来处理。</div>
+<p>参考视频与目标视频先由<strong>同一个 VAE 编码器</strong>变成潜变量，再 patchify、展平，并沿序列维拼接。不同于全部 token 共用一套 self-attention 投影，作者为参考和目标分别设置 Q/K/V 投影，缓解 clean reference 与 noisy target 的分布差异。两条流随后依然可以对整个拼接序列做双向注意力，输出还会交给后续前馈层处理。<a href="https://arxiv.org/html/2603.06014v1#S3.S3">原文式 (1)</a></p>
+<div class="eq-card"><h4>原文式 (1)：双流注意力</h4>
+<p>\[\begin{aligned}O_r&amp;=\mathrm{SA}\!\left(Q_r,[K_r;K_t],[V_r;V_t]\right),\\O_t&amp;=\mathrm{SA}\!\left(Q_t,[K_r;K_t],[V_r;V_t]\right).\end{aligned}\]</p>
+<p><strong>是什么：</strong>第一行更新参考表示，第二行更新目标表示。两行的查询来自不同流，但可读取的 key/value 都来自参考与目标的合集。</p>
+<p><strong>逐符号：</strong>\(Q_r\) 表示参考 token 正在查询什么，\(K_r,K_t\) 是两条流可匹配的信息索引，\(V_r,V_t\) 是被读取的信息内容。拼接后 key/value 的 token 数为 \(N_r+N_t\)；输出 \(O_r\) 仍有 \(N_r\) 个 token，\(O_t\) 仍有 \(N_t\) 个 token。</p>
+<p><strong>为什么：</strong>只分开处理不交流，目标无法读取参考的细节；完全共用投影又可能混淆干净示范与带噪目标。这里选择“投影分开、访问共享”，同时获得表示分工与信息交流。</p>
+<p><strong>直觉：</strong>目标 token 可以从参考中读取光带的局部形状和运动关系，也可以读取其他目标 token 来维持新主体内部一致性。参考 token 在网络内部的特征也会更新；“参考保持无噪声”并不等于“参考隐藏状态从不变化”。</p></div>
+<details class="dig"><summary>深入：不要把双流误读成一个单向参考检索器</summary><p>式 (1) 两行都读取 \([K_r;K_t]\)。因此它并未使用一个阻止参考读取目标的单向 mask。它与“只让目标做语义 cross-attention”同时成立：前者是视觉 token 之间的 self-attention，后者是目标 token 对外部语义条件的 cross-attention。论文没有给出完整的标准 attention 展开式；若写 \(\operatorname{softmax}(QK^\top/\sqrt d)V\)，应标为 Transformer 背景，而不是 EffectMaker 新公式。</p></details>
+
+<h3>4. Biased RoPE：既对齐空间，又保留“来自另一个视频”的身份</h3>
+<div class="intuition">两段视频的左上角都叫“左上角”，便于空间对应；但它们的第一个时刻不能被当作同一帧。给参考时间轴整体错开，就像把两份同格式文件放在不同编号区间，减少位置身份冲突。</div>
+<p>作者使用 biased 3D RoPE：参考与目标的空间位置编码分量对齐，而参考时间位置加入一个常量偏移。可用教学记法 \((\tau,x,y)\mapsto(\tau+\Delta,x,y)\) 理解参考位置的处理，其中 \(\tau\) 是帧的时间坐标，\(x,y\) 是空间坐标，\(\Delta\) 是偏移。这个坐标写法不是原文编号公式；正文只说明常量时间偏移和安全间隔，未报告这里应该取多少。</p>
+<p>它并不通过真实时间同步两段视频，也不是对效果播放速度进行显式控制。它解决的是位置表示的区分问题。参考与目标允许不同空间分辨率；因此“空间分量对齐”也不能解读为强制两段视频具有相同像素宽高。</p>
+
+<h3>5. 数据与训练：不逐特效微调，不等于训练免费</h3>
+<div class="intuition">一个特效师看一次样片就能接新任务，通常是因为过去已经积累了大量经验。EffectMaker 的临时示例能力也建立在训练经验之上：模型先反复学习“同一效果，不同主体”的对应关系，再在使用时读取新示例。</div>
+<p>训练阶段从同一特效类别随机抽取参考和目标视频。这个配对方式迫使模型关注跨主体共有的效果，而非只复现某一固定角色。EffectData 的合成流程先组织主体和特效属性，再生成编辑指令、编辑后的终帧以及首尾帧之间的动态过渡；同一效果作用于不同主体的样本组成可采样的配对组。需要区分<strong>生成训练数据时的首尾帧模型</strong>与<strong>用户使用 EffectMaker 时的输入</strong>：标准用户不必提供目标终帧。</p>
+<p>论文报告约 50k 训练步、32 张 NVIDIA H20，说明这里确实进行了规模化训练。其“无需每种特效再微调”指使用已经训练好的框架时，不必像逐特效 LoRA 那样为每个新例子追加优化，绝不等于整个系统 training-free。原文没有在此提供足够信息让我们断言每个基座模块都全量更新，或者所有基座都冻结。</p>
+<p>在加噪时，所有参考 token 和目标首帧 token 保持干净，使用零时间步嵌入；只有目标非首帧 token 加噪并使用相应时间步嵌入。参考因此持续作为视觉条件，首帧持续锚定目标主体。附录的采样时间步采用下式。<a href="https://arxiv.org/html/2603.06014v1#A1">原文附录 A</a></p>
+<div class="eq-card"><h4>原文式 (2)：训练时间步采样</h4><p>\[t\sim\left\lfloor T\cdot\frac{1}{1+e^{-1.5z}}\right\rfloor,\qquad z\sim\mathcal N(0,1).\]</p><p><strong>逐符号：</strong>\(z\) 是标准正态样本；将 \(1.5z\) 经过 sigmoid 映射到 0 与 1 之间，再乘总步数 \(T\)，最后向下取整得到 \(t\)。\(\mathcal N(0,1)\) 的两个参数分别是均值和方差。这里 \(t\) 是扩散/流匹配过程的时间步，不是式 (1) 的目标流下标。</p><p><strong>为什么：</strong>它让训练关注的噪声时间步分布不同于均匀采样。作者用“偏向中间时间步”描述其意图；精确密度还受缩放系数 1.5 和变量变换影响，不能仅凭 sigmoid 变换就断言是以中点为峰值的单峰分布。该式是已有扩散训练策略的采用，并不是论文关于特效迁移的主要新意。</p></div>
+<p>推理时，由目标图片潜变量、待生成部分的高斯噪声潜变量和参考潜变量共同构成输入序列，DiT 在两类语义条件下逐步生成目标。论文配置使用 UniPC 30 步、CFG scale 6、noise schedule shift 16。这些是作者的报告配置，不能据此推出任意分辨率、任意硬件都有同样时延。</p>
+</section>
+<section id="walkthrough"><h2>走一遍例子：宠物摄影店的“魔法出场”纪念视频</h2>
+<p><strong>这是教学用假设案例，不是论文已交付的客户项目，也不是对商业收益的实测。</strong>假设宠物摄影店已有一段获得授权的样片：一只宠物周围出现蓝色圆环，圆环旋转后散成向上漂浮的粒子。客户提交自己的宠物单主体照片，希望得到相似出场效果。这个案例的收入形式可以是写真套餐附加的视频服务；论文仅提供技术路线，客单价和转化率需要业务试验验证。</p>
+<ol>
+<li><strong>提交输入。</strong>系统保存参考视频、目标照片和指令：“保留目标宠物的毛色和姿态，将参考的蓝色圆环与粒子散开效果迁移到它周围。”具体指令为本例编写，并非作者官方提示模板。上传前的单主体检查可减少多宠物关系歧义。</li>
+<li><strong>先做兼容性判断。</strong>这里的环绕光效与宠物主体大致兼容；若样片是人物脱去外套后变装，目标却是一块没有衣物结构的石头，就应该让用户改选效果或解释预期，而不是默认“任何效果都能合理套用”。这是产品设计建议，论文没有提供一个自动拦截器。</li>
+<li><strong>理解端分析。</strong>可预期的描述内容包括效果的主体外部附着位置、蓝色环形结构、先旋转后碎成粒子的顺序，以及需要保留目标宠物身份。此处列的是人类教学推演，未运行模型，不能当作 Qwen 实际生成的文字。</li>
+<li><strong>建立两种语义条件。</strong>理解隐藏状态进入连接器；分析文字由 T5 编码。二者经各自 key/value 分支供目标 token 查询。系统不要求用户自己逐一写出全部光粒运动细节，视觉参考会继续提供这些细节。</li>
+<li><strong>建立视觉示例条件。</strong>共享 VAE 编码参考和目标图片，构造参考流与目标流。参考 token 及目标首帧保持干净，目标未来帧从噪声起步；不同 Q/K/V 投影保留流的身份，式 (1) 让目标读取参考。</li>
+<li><strong>生成与验收。</strong>经采样得到目标视频后，店员至少检查宠物身份、圆环是否错误穿过身体、先后运动是否正确、粒子出现后是否把宠物也融化。身份失真不能被“特效很华丽”掩盖。高质量通过率、返工次数和每个通过作品的总耗时，才是这个服务的经营指标。</li>
+</ol>
+<p>如果这套流程与 SAGE、Soap2Soap 等组成更大的生产链，EffectMaker 更适合作为某个镜头的特效渲染环节：上游决定镜头意图与主体资产，下游负责版本挑选、剪辑和交付。本文没有实证多镜头身份一致性、精确时长控制或对现有目标视频的无损逐帧编辑，因此不宜把它直接包装成长片后期软件的完整替代品。</p>
+</section>
+<section id="experiments">
+<h2>实验：平均更好，究竟证明了什么？</h2>
+<p>先读闭集主表，再读消融：前者回答“已知特效类别里，输出是否更好看、更像指定效果”，后者回答“为什么同时需要语义推理和视觉参考”。<strong>本文没有用商业交付成功率、身份保持率或后期制作工时作主指标</strong>，因此不能把奖励模型的分数改写成“准确率”或“节省百分之多少制作成本”。以下数值核对自<a href="https://arxiv.org/html/2603.06014v1#S4">论文第 4 节</a>及附录 A、F。</p>
+<div class="keynum-row"><div class="keynum"><div class="n">2.84</div><div class="cap">闭集平均 VQ；最佳基线 2.27</div></div><div class="keynum"><div class="n">4.63 / 5</div><div class="cap">闭集平均 CAS；最佳基线 4.40</div></div><div class="keynum"><div class="n">48 GB</div><div class="cap">作者配置下端到端推理显存</div></div></div>
+<h3>1. 设置与指标：两套评分，不能混用刻度</h3>
+<p>闭集测试从 OpenVFX 选取 14 种特效，每类使用 10 张主体图像，按类别汇总视频质量与特效一致性。对手包括逐特效训练 LoRA 的 VFXCreator、使用混合 LoRA 的 Omni-Effects，以及在作者数据上微调 Wan2.2-TI2V-5B 得到的 Wan2.2-FT。论文为了闭集比较，也在相同的 OpenVFX 数据上训练自身方法；但<strong>只有 EffectMaker 接收到参考视频</strong>，其他方法主要根据特效类别/文本驱动。这个设定能比较“不同完整使用方式的效果”，不能单独证明一个同输入条件下的生成骨干绝对优于其他骨干。</p>
+<table><thead><tr><th>指标</th><th>来源与含义</th><th>该怎样解释</th></tr></thead><tbody><tr><td>VQ ↑</td><td>VideoAlign 奖励模型；外观清晰度、美感、逻辑合理性等静态质量</td><td>更高表示模型更偏好该结果；不是通过率。</td></tr><tr><td>MQ ↑</td><td>VideoAlign；运动平滑、物理合理性与时间稳定性</td><td>可以为负数；0 不代表完全没有运动。</td></tr><tr><td>TA ↑</td><td>VideoAlign；视频与输入文字在主体、动作、环境等语义上的对应</td><td>可以为负数；不能把 −0.24 转换成“负的准确率”。</td></tr><tr><td>CAS ↑</td><td>Gemini 2.5 判断生成视频与目标特效类别的符合程度，0–5 分</td><td>名称是否对，例如是不是“融化”；不保证细节和参考完全一致。</td></tr><tr><td>RAS ↑</td><td>Gemini 2.5 判断生成视频与参考特效的符合程度，0–5 分</td><td>质感、形态、动态是否像参考；只在消融中报告。</td></tr></tbody></table>
+<p>CAS 和 RAS 都是模型判分，不是逐像素真值，也不等于人工验收。VideoAlign 的训练目标是学习人类相对偏好，因此 VQ、MQ、TA 的数值范围不能与 0–5 的 CAS/RAS 直接作跨指标比较。尤其“特效违反现实物理规律”本来就是任务目标的一部分，通用运动质量评分也可能与创作者对夸张特效的偏好出现分歧。</p>
+<h3>2. 闭集主结果：四项均值领先，分项存在反例</h3>
+<div class="table-wrap"><table><caption>原文 Table 2 的 14 类平均值；全部指标越高越好。</caption><thead><tr><th>方法</th><th>VQ</th><th>MQ</th><th>TA</th><th>CAS</th></tr></thead><tbody><tr><td>VFXCreator</td><td>2.06</td><td>−0.03</td><td>−0.92</td><td>4.34</td></tr><tr><td>Omni-Effects</td><td>2.27</td><td>−0.14</td><td>−0.61</td><td>4.40</td></tr><tr><td>Wan2.2-FT</td><td>1.89</td><td>0.20</td><td>−0.70</td><td>3.59</td></tr><tr><td><strong>EffectMaker</strong></td><td><strong>2.84</strong></td><td><strong>0.25</strong></td><td><strong>−0.24</strong></td><td><strong>4.63</strong></td></tr></tbody></table></div>
+<p>相对每项最强基线，EffectMaker 的平均 VQ 增加 0.57、MQ 增加 0.05、TA 增加 0.37、CAS 增加 0.23。VQ 的优势较突出，但 MQ 的领先幅度较小。这些是不同评分标尺上的<strong>绝对差值</strong>，不应给它们统一换算“提升率”，更不能据此预测客户愿意为成片支付的价格。</p>
+<p>更有解释力的是类别差异。Levitate（悬浮）的 VQ 为 3.70，超过三个基线的 2.50、2.27、2.12，CAS 也达到 4.80；Ta-da 的 VQ 为 3.99，显著高于 VFXCreator 的 2.28，但 MQ 只有 0.52，低于 VFXCreator 的 0.77 和 Wan2.2-FT 的 0.63。Decapitate 的 MQ 为 0.11，低于 Wan2.2-FT 的 0.79；Crumble 的 CAS 为 4.60，低于三个基线的 5.00；Cake-ify 的 CAS 为 3.60，也低于 VFXCreator 的 4.00。<strong>因此准确结论是“四项类别均值最高”，不是“所有类别、所有维度均最优”。</strong></p>
+<details class="dig"><summary>展开 Table 2 全部分项数值（横向滚动）</summary>
+<div style="overflow-x:auto"><table><thead><tr><th>指标</th><th>方法</th><th>Cake-ify</th><th>Crumble</th><th>Decapitate</th><th>Deflate</th><th>Dissolve</th><th>Explode</th><th>Eye-pop</th><th>Harley</th><th>Inflate</th><th>Levitate</th><th>Melt</th><th>Squish</th><th>Ta-da</th><th>Venom</th><th>Avg.</th></tr></thead><tbody>
+<tr><td>VQ</td><td>VFXCreator</td><td>2.71</td><td>2.41</td><td>2.68</td><td>2.33</td><td>1.69</td><td>1.38</td><td>2.13</td><td>0.97</td><td>2.41</td><td>2.50</td><td>1.96</td><td>1.77</td><td>2.28</td><td>1.62</td><td>2.06</td></tr>
+<tr><td>VQ</td><td>Omni-Effects</td><td>3.11</td><td>2.49</td><td>2.62</td><td>2.39</td><td>1.93</td><td>1.84</td><td>2.23</td><td>1.48</td><td>2.55</td><td>2.27</td><td>2.20</td><td>2.27</td><td>2.59</td><td>1.82</td><td>2.27</td></tr>
+<tr><td>VQ</td><td>Wan2.2-FT</td><td>2.15</td><td>1.42</td><td>2.63</td><td>2.15</td><td>1.64</td><td>0.91</td><td>2.23</td><td>1.71</td><td>1.89</td><td>2.12</td><td>1.74</td><td>2.11</td><td>2.04</td><td>1.69</td><td>1.89</td></tr>
+<tr><td>VQ</td><td>EffectMaker</td><td>3.39</td><td>2.94</td><td>3.01</td><td>2.99</td><td>1.93</td><td>2.23</td><td>2.44</td><td>2.17</td><td>3.19</td><td>3.70</td><td>2.53</td><td>2.79</td><td>3.99</td><td>2.46</td><td>2.84</td></tr>
+<tr><td>MQ</td><td>VFXCreator</td><td>−0.05</td><td>−0.15</td><td>−0.05</td><td>0.13</td><td>−0.17</td><td>−0.35</td><td>0.11</td><td>−0.26</td><td>−0.14</td><td>0.48</td><td>−0.16</td><td>−0.41</td><td>0.77</td><td>−0.21</td><td>−0.03</td></tr>
+<tr><td>MQ</td><td>Omni-Effects</td><td>0.12</td><td>−0.27</td><td>−0.08</td><td>0.02</td><td>−0.09</td><td>−0.33</td><td>0.04</td><td>−0.28</td><td>−0.11</td><td>−0.04</td><td>−0.14</td><td>−0.37</td><td>−0.09</td><td>−0.34</td><td>−0.14</td></tr>
+<tr><td>MQ</td><td>Wan2.2-FT</td><td>0.22</td><td>−0.16</td><td>0.79</td><td>0.41</td><td>0.06</td><td>−0.30</td><td>0.45</td><td>0.27</td><td>0.04</td><td>0.28</td><td>0.09</td><td>−0.02</td><td>0.63</td><td>0.01</td><td>0.20</td></tr>
+<tr><td>MQ</td><td>EffectMaker</td><td>0.59</td><td>0.02</td><td>0.11</td><td>0.51</td><td>−0.06</td><td>−0.13</td><td>0.73</td><td>0.25</td><td>0.09</td><td>0.65</td><td>0.26</td><td>−0.05</td><td>0.52</td><td>0.04</td><td>0.25</td></tr>
+<tr><td>TA</td><td>VFXCreator</td><td>−2.63</td><td>1.54</td><td>−1.82</td><td>−3.38</td><td>−3.50</td><td>1.44</td><td>0.90</td><td>1.51</td><td>−2.95</td><td>−1.29</td><td>−0.58</td><td>0.99</td><td>−3.36</td><td>0.26</td><td>−0.92</td></tr>
+<tr><td>TA</td><td>Omni-Effects</td><td>−2.23</td><td>1.80</td><td>−1.99</td><td>−3.10</td><td>−3.32</td><td>1.77</td><td>1.27</td><td>1.51</td><td>−1.71</td><td>−1.04</td><td>−0.22</td><td>0.87</td><td>−2.43</td><td>0.28</td><td>−0.61</td></tr>
+<tr><td>TA</td><td>Wan2.2-FT</td><td>−0.56</td><td>1.43</td><td>−2.20</td><td>−2.51</td><td>−1.38</td><td>0.87</td><td>0.75</td><td>−1.22</td><td>−0.04</td><td>−1.03</td><td>−1.50</td><td>0.94</td><td>−2.62</td><td>−0.74</td><td>−0.70</td></tr>
+<tr><td>TA</td><td>EffectMaker</td><td>−1.89</td><td>1.40</td><td>−1.60</td><td>−2.31</td><td>−0.55</td><td>1.11</td><td>1.29</td><td>1.00</td><td>0.41</td><td>−0.47</td><td>−0.17</td><td>0.80</td><td>−2.35</td><td>−0.08</td><td>−0.24</td></tr>
+<tr><td>CAS</td><td>VFXCreator</td><td>4.00</td><td>5.00</td><td>5.00</td><td>5.00</td><td>5.00</td><td>4.20</td><td>5.00</td><td>5.00</td><td>5.00</td><td>1.00</td><td>5.00</td><td>5.00</td><td>1.80</td><td>4.80</td><td>4.34</td></tr>
+<tr><td>CAS</td><td>Omni-Effects</td><td>2.80</td><td>5.00</td><td>4.00</td><td>2.80</td><td>4.80</td><td>4.80</td><td>5.00</td><td>5.00</td><td>5.00</td><td>4.00</td><td>4.60</td><td>5.00</td><td>3.80</td><td>5.00</td><td>4.40</td></tr>
+<tr><td>CAS</td><td>Wan2.2-FT</td><td>2.20</td><td>5.00</td><td>0.00</td><td>5.00</td><td>5.00</td><td>3.00</td><td>4.40</td><td>4.20</td><td>3.00</td><td>4.60</td><td>1.00</td><td>4.00</td><td>3.80</td><td>5.00</td><td>3.59</td></tr>
+<tr><td>CAS</td><td>EffectMaker</td><td>3.60</td><td>4.60</td><td>5.00</td><td>4.20</td><td>5.00</td><td>3.80</td><td>5.00</td><td>5.00</td><td>4.60</td><td>4.80</td><td>5.00</td><td>5.00</td><td>4.20</td><td>5.00</td><td>4.63</td></tr>
+</tbody></table></div></details>
+<h3>3. 开集证据：未见类别可以迁移，不代表任意特效可复制</h3>
+<p>论文用训练中未出现的 portal、plastic model、green tree glowing 等效果作定性比较，展示仅靠文字的 Wan2.2-FT 有时能生成大致图案，却难保持参考的视觉细节与时间变化；Omni-Effects 对未见类别更易失效，EffectMaker 的参考视频引导则较接近目标。<strong>原文没有一张独立的“开集主方法对比数值表”</strong>：Table 3 是条件消融，Table 4 才是在开集特效上比较训练类别规模。不能把这些消融的数字误写为与 VFXCreator 等方法的开集排名。</p>
+<p>这里的 open-set 指测试效果类别未进入训练集，而不是保证任何电影特效、任意多效果叠加、任意物体或复杂镜头都能一次生成成功。附录 E 的真实电影特效迁移是少量人工收集片段的展示，作者也明确指出细节层面仍有 synthetic-to-real gap；没有给出真实电影测试集上的统计成功率。</p>
+<h3>4. 三组消融：语义决定“是什么”，视觉决定“具体长什么样”</h3>
+<table><caption>Table 3：条件设计消融。</caption><thead><tr><th>条件</th><th>VQ</th><th>MQ</th><th>TA</th><th>CAS</th><th>RAS</th></tr></thead><tbody><tr><td>只有语义</td><td>2.78</td><td>0.16</td><td>1.06</td><td>4.20</td><td>3.84</td></tr><tr><td>只有视觉</td><td>2.48</td><td>0.12</td><td>−0.38</td><td>2.24</td><td>1.48</td></tr><tr><td>语义＋视觉</td><td><strong>2.92</strong></td><td><strong>0.21</strong></td><td><strong>1.24</strong></td><td><strong>4.40</strong></td><td><strong>4.16</strong></td></tr></tbody></table>
+<p>只有视觉时，网络容易复制颜色、纹理，却丢掉抽象结构：原文 Figure 7 举出 DNA 式螺旋几何未能正确复现的例子。只有语义时，效果概念通常正确，但空间形态与局部细节不像参考。合并后，RAS 相对只有语义增加 0.32、相对只有视觉增加 2.68；这说明视觉上下文并不是直接替代语义，二者承担了不同工作。不过该消融是移除整条条件路径，不能进一步断言“自回归推理 token 本身贡献了多少”，因为原文未对理解特征与推理特征给出同样独立的数值消融。</p>
+<table><caption>Table 4：在开集效果上评估训练类别扩展。</caption><thead><tr><th>训练特效类别数</th><th>VQ</th><th>MQ</th><th>TA</th><th>CAS</th><th>RAS</th></tr></thead><tbody><tr><td>100</td><td>2.76</td><td>0.13</td><td>0.94</td><td>3.76</td><td>3.22</td></tr><tr><td>1000</td><td>2.89</td><td>0.19</td><td>1.21</td><td>4.22</td><td>4.04</td></tr></tbody></table>
+<p>类别数从 100 到 1000 后五项指标均提高，RAS 增加 0.82，支持“更丰富的特效覆盖有助于未见效果迁移”。这不是 100、1000、3000 类的完整 scaling law：原文仅给出两个规模点，也没有用该表控制并单独解释总视频数、训练预算和类别多样性的各自贡献。</p>
+<table><caption>正文 Attention design 段：独立投影与共享投影比较；原文未提供此项 VQ/MQ。</caption><thead><tr><th>Self-attention 设计</th><th>TA</th><th>CAS</th><th>RAS</th></tr></thead><tbody><tr><td>单流：参考与目标共享投影</td><td>0.81</td><td>3.30</td><td>2.84</td></tr><tr><td>双流：分别投影、相互注意</td><td>1.24</td><td>4.40</td><td>4.16</td></tr></tbody></table>
+<p>参考 token 是干净信号，目标未来帧 token 在去噪过程带有噪声；让两者强制共享 Q/K/V 投影，可能把不同分布混到同一个表示空间里。分开投影并保留跨流注意力后，RAS 提高 1.32。论文把“干净与噪声域差异”作为原因解释，实验支持设计有效，但并没有直接测量这个分布差异或证明唯一因果机制。偏置 RoPE 与解耦 cross-attention 没有独立的完整数值消融表，报告不补造其贡献数字。</p>
+<figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 240" role="img" aria-labelledby="effectmaker-ablation-title" style="max-width:100%;height:auto"><title id="effectmaker-ablation-title">条件消融的参考一致性分数</title><rect width="760" height="240" fill="#f6f8fb"/><text x="24" y="32" font-size="18" fill="#172033">RAS：与参考效果的接近程度（0–5）</text><g fill="#243449" font-size="15"><text x="24" y="85">只有视觉</text><text x="24" y="139">只有语义</text><text x="24" y="193">语义＋视觉</text></g><g fill="#c6d4ef"><rect x="150" y="62" width="148" height="30" rx="4"/><rect x="150" y="116" width="384" height="30" rx="4"/></g><rect x="150" y="170" width="416" height="30" rx="4" fill="#476fd6"/><g fill="#172033" font-size="16"><text x="309" y="84">1.48</text><text x="545" y="138">3.84</text><text x="577" y="192">4.16</text></g><text x="150" y="225" font-size="12" fill="#657087">按 Table 3 数值重绘；条形长度采用相同线性比例。</text></svg><figcaption>读图要点：视觉参考提供细节，但缺少语义时更容易只模仿表面纹理；两条路径共同使用时参考一致性最高。本图为数值重绘，非原论文截图。</figcaption></figure>
+<h3>5. 用户研究、算力与实际交付</h3>
+<p>用户研究招募 30 名参与者，围绕 14 类特效安排 28 道问题，即每类两题。每题展示特效名称、参考视频及并排结果，随机打乱展示顺序，分别询问效果质量、类别符合度与参考符合度的偏好。作者报告自身方法的总体偏好最高，附录说明大多数类别取得最高或接近最高偏好。它支持观感优势，但不能当作专业特效师的生产验收：论文没有说明参与者全部来自影视后期行业，也没有测量多轮改稿、素材合规、成片可编辑性或实际结算工时。本报告未对难以可靠抽取的 Figure 8/11 图内百分比作猜测。</p>
+<table><thead><tr><th>项目</th><th>作者报告配置</th><th>落地含义</th></tr></thead><tbody><tr><td>训练</td><td>32 张 NVIDIA H20，约 50k 步；Adam，学习率 2×10<sup>−5</sup></td><td>“无需逐特效微调”不是“不需大规模训练”；是部署一个预先训练好的通用迁移模型。</td></tr><tr><td>输入参考</td><td>17 帧，短边 448；长边按 32 对齐且不超过 832</td><td>减少参考上下文成本，也限制了精细动态读取量。</td></tr><tr><td>目标视频</td><td>81 帧，短边 704；长边按 32 对齐且不超过 1280</td><td>论文未在此处明确输出帧率，不能擅自把 81 帧改写成固定秒数。</td></tr><tr><td>推理采样</td><td>UniPC 30 步，CFG 6，noise schedule shift 16</td><td>质量/时延依赖具体采样设置。</td></tr><tr><td>单次推理</td><td>H20 上 MLLM 约 2 秒，DiT 约 2 分钟；端到端显存 48 GB</td><td>适合异步生成与批量队列；不等于移动端实时滤镜。量化/卸载可降显存是作者建议，未给出对应质量与时延验证。</td></tr></tbody></table>
+<div class="callout"><strong>数据数量有公开口径差异：</strong>论文摘要、Table 1 及正文采用 130k 视频、3000 类；项目页 TL;DR/数据章节也写 130k，但项目页 Abstract 写 120K。这里以论文 v1 的 <strong>约 13 万视频、3000 类</strong>介绍，并保留差异，不能把 12 万和 13 万解释为已确认的训练/测试拆分。详细商用数据审计仍需核对最终发布清单、来源及授权。</div>
+</section>
+<section id="visualization"><h2>效果可视化：看演示时检查三件事</h2><p>上方消融条形图重绘的是统计分数；真正的动态效果请结合 <a href="https://effectmaker.github.io/">官方项目页视频</a>与<a href="https://arxiv.org/html/2603.06014v1#S4">论文 Figure 4–7</a>阅读。单张静帧不能证明时间一致性，尤其不能据此判断变形途中是否仍是同一个角色。</p><div class="table-wrap"><table><thead><tr><th>观察轴</th><th>在演示里看哪里</th><th>与业务验收的区别</th></tr></thead><tbody><tr><td>效果语义</td><td>参考是环绕、爆发还是主体变形？生成结果是否发生同一类别的事件？</td><td>CAS 可辅助判断类别，不保证具体客户设计被完整保留。</td></tr><tr><td>视觉动态</td><td>形态、颜色、发生位置、先后顺序是否接近参考？复杂螺旋是否退化为散乱纹理？</td><td>RAS 衡量整体参考相似，不能保证每帧轨迹或触发点。</td></tr><tr><td>目标身份</td><td>脸、毛色、服装、轮廓在效果最强和高速运动时是否漂移？效果消退后是否仍是同一主体？</td><td>这是交付核心要求，却没有对应的独立身份保持主指标。</td></tr></tbody></table></div><p class="bridge">视觉效果“很像”与素材“可以交付”之间，仍有身份、授权、剪辑和格式要求。下面把这些边界与具体商业候选连接起来。</p></section>
+<section id="limitations">
+<h2>局限与失败：哪些订单应先筛掉？</h2>
+<p><strong>第一类是快速、大幅运动导致主体保真下降。</strong>附录 F 的飞行效果中，主体突然向上起飞时出现身份/外观破坏。参考效果匹配得上，并不意味着人物脸部、肢体和衣物在每帧都能保持。论文把这一问题归因于基础视频模型能力上限；换更大基础模型可能有帮助，但本文没有提供替换后的实验。高速旋转、剧烈翻转等可以作为部署验收时额外设计的压力测试，<em>并非论文已单独量化验证过的类别</em>。</p>
+<p><strong>第二类是参考与目标在语义上不兼容。</strong>原文举例：参考为“向日葵开花”，目标却是一张狗的图片，生成结果无法忠实表达开花的特效语义。这不是只需提高纹理清晰度的问题，而是“该效果如何作用于这个对象”缺少合理对应。产品应在生成前检查主体类型与特效适配关系，给用户解释或更换模板建议，而不是保证参考视频中的任何动作都能搬到任意商品、人物或动物上。</p>
+<p><strong>第三类是合成训练数据覆盖不到真实制作的杂乱条件。</strong>主体收集和过滤偏向清楚、居中、单主体的人像与动物；真实素材中的多人互动、遮挡、噪声、不明确的特效边界及多个重叠效果，可能超出该分布。附录的真实电影迁移仍有细节差距。文章没有报告全长影片、连续多镜头统一特效、复杂合成层级或可重建的三维特效场景。</p>
+<p><strong>商业上最合适的第一步</strong>是建立受控特效模板库：清晰单主体图像、固定长度短片、预先验证的参考效果，生成后人工选片与局部修整。需精确跟踪 Logo/文字、维持产品尺寸、指定每帧运动轨迹、输出透明通道或可编辑粒子层时，应单独验证，论文没有提供这些能力的实验凭证。适用于客户互动活动、角色/宠物纪念短片、游戏社区身份特效等方向的判断属于本调研的产品推断，而不是论文已经证明的商业收入或交付承诺。</p>
+</section>
+<section id="commercial">
+<h2>商业迁移：把“同一种特效，适配许多主体”卖给谁</h2>
+<p>以下是基于论文能力的产品推演，不是作者报告的客户案例或已验证收入。EffectMaker 最适合可接受人工挑选与后期修整的短片资产服务：一段已授权参考特效，加一张客户主体图，产出可评审的效果候选。它没有输出粒子系统、透明通道或可编辑 3D 工程的承诺，也不能直接替代游戏引擎特效。</p>
+<div class="table-wrap"><table><thead><tr><th>小众候选与付费对象</th><th>可交付的 MVP</th><th>为什么愿意付费</th><th>验收与落地缺口</th></tr></thead><tbody>
+<tr><td>展馆“物件苏醒”与章节情绪转场<br>付费方：中小展馆、文旅展陈承包商</td><td>用馆方提供的器物照片，制作 3 组“纸片聚合 / 光纹苏醒 / 尘粒消散”候选；按展项打包成短转场片段与静帧。</td><td>同一视觉语言需要适配多件展品；展陈更新频繁，先快速评审风格再精修可减少反复制作。</td><td>器物轮廓与纹样不能漂移；特效不能遮住讲解重点；后期补循环衔接、字幕、异形屏映射。幻想演绎需与史实复原明确区分。与既有“历史场景重制”互补，负责片段表现层。</td></tr>
+<tr><td>小型演出与音乐节舞台视觉提案<br>付费方：舞台内容工作室、独立艺人团队</td><td>把同一能量爆发 / 冰晶生长参考适配到艺人定妆照，交付每首曲目若干镜头候选及节奏标记；定位为导演与客户的概念评审包。</td><td>排练前要迅速判断特效气质与角色是否匹配；参考驱动比反复描述“更燃、更空灵”更具体。</td><td>检查人脸与服装、效果触发点、视觉节奏；同步音乐、超宽屏渲染、无缝循环须由后期完成。原论文不支持实时舞台互动或舞者动作追踪。</td></tr>
+<tr><td>独立游戏角色觉醒 / 卡牌稀有度展示短片<br>付费方：中小游戏美术外包商、卡牌发行团队</td><td>保持角色立绘，生成火焰、结晶、数字解体等升级演出候选，交付游戏内播放的成片或宣传之外的角色展示资产。</td><td>大量角色需共享技能家族风格，同时避免逐角色从头制作；可按角色与效果家族报价。</td><td>角色辨识度、关键装备、效果类别与重复使用的一致性；需手工剪辑、抠像与适配 UI。输出是视频，不是可实时运行、可交互、带碰撞的引擎 VFX。</td></tr>
+<tr><td>密室 / 实景剧本体验中的角色变身片段<br>付费方：连锁密室运营商、沉浸式戏剧制作方</td><td>将授权演员定妆照或原创角色卡适配为“诅咒侵蚀 / 灵魂消散 / 护盾出现”事件片段，嵌入现有触发式播放器。</td><td>同一剧本在不同门店、演员与节日版本需要换主体，短事件片可复用参考特效。</td><td>审核演员身份稳定、故事规定的效果顺序和触发前后画面；播放器集成与音效由应用侧实现。当前约分钟级生成，更适合提前制作，不宜承诺游客现场即时产片。</td></tr>
+</tbody></table></div>
+<p>优先试点“舞台概念评审包”或“独立游戏角色展示候选”：交付物允许专业人士筛选，失败成本可控。先对同一参考选取 10 张跨形态主体，记录可用率、修整时间、每条实际 GPU 分钟和最终一次验收比例。客户为节省设计迭代时间付费，而不是为论文的 CAS 分数付费。当前代码与权重未完整公开，适合先做客户需求验证与素材规范设计，不能写成今天即可部署的 EffectMaker SaaS。</p>
+<p>与现有维修、手语和社会故事方向的关系较弱：这些场景优先追求动作与语义正确，夸张效果可能干扰目标。与 Soap2Soap、SAGE 的潜在协作则更清晰：它们处理叙事与镜头组织，EffectMaker 负责某个指定镜头的参考特效迁移；这个组合是本报告提出的工程设想，论文没有验证联合流水线。</p>
+</section>
+<section id="faq"><h2>常见疑问</h2>
+<details><summary>它是给我上传的完整视频加一层特效吗？</summary><p>标准任务是“参考视频 + 目标图片 → 新目标视频”，不是“已有目标视频 → 保留原运动并精确合成特效”。它可能重新生成主体运动和画面细节；如客户要求严格保留演员原表演，仍需要另外验证编辑管线或传统合成方法。论文还展示了不输入目标图片的 reference rephrasing 扩展，但这不改变标准任务定义。</p></details>
+<details><summary>既然有推理文字，为什么还要输入参考视频？</summary><p>推理文字描述大意，参考则保留文字难以完全表达的局部纹理、几何和时间变化。它们解决不同层次的问题。只看文字可能语义正确却不像样片；只看视觉可能颜色很像却未理解复杂形态。论文的双条件消融用于检验这一分工，而不是证明文字思维一定真实可靠。</p></details>
+<details><summary>新效果没训练过，也能复制吗？</summary><p>参考条件让模型具备向未见效果迁移的可能，论文给了开放类别测试。但“未见”不意味着任何新效果都能成功；复杂快速运动、多个重叠效果、与首帧语义不兼容的效果仍可能失败。商业目录可以先筛选容易稳定迁移的效果，再扩大范围。</p></details>
+<details><summary>可以像后期软件一样锁定某个效果参数和空间位置吗？</summary><p>本文的主要条件是视觉示例与语义指令，没有给出可保证精确遵循的关键帧曲线、3D 发射器、像素级蒙版和参数化粒子控制体系。若业务必须严格控制安全距离、镜头空间或品牌元素形状，应补充几何控制、合成与人工审核，不能将参考相似度等同于工程精度。</p></details>
+</section>
+<section id="reproduction">
+<h2>复现指南：数据已开放，完整模型尚不能一键复现</h2>
+<p>截至本次核查（2026-10-12），要区分三个状态：论文可读、EffectData 可下载、EffectMaker 完整代码与训练权重尚未找到公开发布。项目页仍将代码标为 Coming Soon；官方 GitHub 当前只有 README.md 与 LICENSE，没有环境文件、训练入口或推理脚本。因此下面提供的是确有出处的数据准备命令与复现缺口，不能把 Wan 基座的推理命令当成 EffectMaker 的运行方式。<a href="https://effectmaker.github.io/">官方项目页</a>；<a href="https://github.com/ysy31415/EffectMaker">官方仓库</a>。</p>
+<div class="table-wrap"><table><thead><tr><th>资源</th><th>实际核查状态</th><th>可做什么 / 不能做什么</th></tr></thead><tbody>
+<tr><td><a href="https://arxiv.org/abs/2603.06014">arXiv v1 / PDF</a></td><td>2026-03-06 发布</td><td>主方法与附录实现细节；另有 <a href="https://openaccess.thecvf.com/content/CVPR2026/html/Yang_EffectMaker_Unifying_Reasoning_and_Generation_for_Customized_Visual_Effect_Creation_CVPR_2026_paper.html">CVPR 2026 正式条目</a>，页码 16108–16117。</td></tr>
+<tr><td><a href="https://github.com/ysy31415/EffectMaker">官方代码</a></td><td>占位仓库；README 与 MIT LICENSE</td><td>尚无完整运行说明、依赖版本或训练配置；不能声称已具备可运行系统。</td></tr>
+<tr><td>EffectMaker checkpoint</td><td>在官方项目、仓库与关联 Hugging Face 资源中未找到</td><td>Wan / Qwen 原始权重不能替代训练过的连接器、注意力分支与 VFX 生成器。</td></tr>
+<tr><td><a href="https://huggingface.co/datasets/ysy31415926/EffectData">EffectData</a></td><td>数据卡与实际文件均已公开</td><td>约 822 GB；<a href="https://huggingface.co/datasets/ysy31415926/EffectData/tree/main/Videos">Videos 文件夹</a>可见按特效类别打包的 zip；预览集约 3,061 行是每类示例，不是完整视频总量。</td></tr>
+<tr><td><a href="https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B">Wan2.2-TI2V-5B</a></td><td>基座已公开，Apache-2.0</td><td>用于理解生成底座；其原生 24 GB 显存运行说明不能直接套到完整 EffectMaker。</td></tr>
+<tr><td><a href="https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct">Qwen3-VL-8B-Instruct</a></td><td>公开模型卡标 Apache-2.0</td><td>可作为 Qwen3-VL-8B 系列资源入口；论文只指定系列名，不能擅自认定该 Instruct checkpoint 就是作者精确初始化版本。</td></tr>
+</tbody></table></div>
+<h3>现在可复核的数据准备</h3>
+<p>先在 Dataset Viewer 按中英文类别浏览低分辨率样例，确认特效是否适合自己的主体，再下载一个类别。以下命令逐字采用官方数据卡的下载示例，仅供参考，未执行。</p>
+<pre><code>EFFECT_NAME="Butterfly_wings"
+wget -O "${EFFECT_NAME}.zip" \
+  "https://huggingface.co/datasets/ysy31415926/EffectData/resolve/main/Videos/${EFFECT_NAME}.zip?download=true"</code></pre>
+<details class="dig"><summary>完整数据下载与目录说明</summary>
+<pre><code>hf download ysy31415926/EffectData \
+  --repo-type dataset \
+  --local-dir /your/local/path</code></pre>
+<p>数据卡将 Videos/ 定义为短边 704 像素的全分辨率 MP4 分类压缩包；example_preview/ 保存每类低分辨率示例；effect_names_list.csv 给出中英文类名；annotations.json 以视频名为键，包含 video_path、prompt、vfx、instruction、abstract 的中英文版本。数据卡与文件列表均可核查这些资源，不能把浏览器预览行数误读为训练数据规模。来源：<a href="https://huggingface.co/datasets/ysy31415926/EffectData">官方数据卡</a>。</p>
+</details>
+<h3>训练、推理与复现缺口</h3><p>作者算力与采样配置见 <a href="#experiments">实验章节</a>，其中 48 GB 与约 2 分钟来自指定 H20 配置。完整资源发布后，仍需检查精确的 Qwen 初始化版本与冻结策略、连接器和双流权重、RoPE 时间偏移、采样配置、同类配对切分与 Gemini 评价提示。现阶段缺作者环境锁定、训练入口和 checkpoint；独立实现须标为重实现，不能宣称官方复现成功。</p><h3>商业许可：分开看代码、数据和模型</h3>
+<p>官方仓库的 <a href="https://github.com/ysy31415/EffectMaker/blob/main/LICENSE">MIT LICENSE</a>覆盖仓库已提供的软件与文档；数据卡将 <a href="https://huggingface.co/datasets/ysy31415926/EffectData">EffectData 标为 Apache-2.0</a>。两者都不能自动推导尚未发布的 EffectMaker 训练权重的许可。Wan 与 Qwen 的公开模型卡亦各自列出 Apache-2.0。正式交付时要记录所用版本和许可，并确认客户目标图、人物肖像与参考特效素材的使用授权；项目网页页脚的 CC BY-SA 4.0 是网页内容许可，不能当作模型授权。这里是基于公开资源的工程判断，不构成作者提供的商用担保。</p>
+</section>
+<section id="glossary"><h2>术语表</h2><div class="table-wrap"><table><thead><tr><th>术语</th><th>在本文中的含义</th></tr></thead><tbody>
+<tr><td>VFX / visual effect</td><td>视觉特效，包括围绕主体的氛围效果及主体外观、身份或物理形态的变化。</td></tr>
+<tr><td>MLLM</td><td>多模态大语言模型；这里负责阅读参考视频和目标图片并生成适配描述。</td></tr>
+<tr><td>DiT</td><td>Diffusion Transformer，使用 Transformer 处理潜变量并完成视频生成的骨干。</td></tr>
+<tr><td>VAE / latent</td><td>将视频压缩到潜变量空间的编解码器及其表示；不等于普通视频文件编码。</td></tr>
+<tr><td>Cross-attention</td><td>让目标视频 token 查询外部语义条件的注意力操作。</td></tr>
+<tr><td>Dual-stream self-attention</td><td>参考与目标分开投影，但对拼接序列共同读取信息的注意力操作。</td></tr>
+<tr><td>In-context conditioning</td><td>使用生成时输入的示例作为条件；这里不是每次新增效果都更新参数。</td></tr>
+<tr><td>RoPE</td><td>旋转位置编码；biased RoPE 通过参考时间偏移区分两条视频流。</td></tr>
+<tr><td>LoRA</td><td>低秩参数适配方法；逐效果 LoRA 需要管理与训练不同效果适配器。</td></tr>
+<tr><td>CFG</td><td>Classifier-free guidance，用来调节条件对生成过程的影响；较大数值不自动代表更好。</td></tr>
+<tr><td>Open-set effect</td><td>评测中未包含于所述训练效果集合的类别；需按具体实验划分理解。</td></tr>
+</tbody></table></div></section>
+</main></body></html>
+ N[目标未来帧高斯噪声] --> D
+<details class="dig"><summary>展开 EffectData：怎样制造“同效果、不同主体”的训练对？</summary><p>作者先整理两类效果：一类是附着于主体或其周围的氛围效果，按元素（如冰、火、光）、表现模式（如粒子、光环）与附着部位组合；另一类是改变服装、身份或物理形态的变换效果。这个分类不是可编辑粒子引擎，而是生成多样化指令的组织方式。</p><ol><li><strong>准备主体。</strong>从内部人像与 PPR10K 等来源收集主体图，利用 FLUX 补充男性和动物，过滤文字、多主体与主体过小的图片；以超分辨率和 OCR / FLUX-Kontext 清理等步骤提高输入质量。</li><li><strong>构造静态变化。</strong>LLM 根据效果属性写编辑指令，图像编辑模型产生带效果的目标图像。这样先明确“最后希望变成什么样”。</li><li><strong>补上动态过程。</strong>MLLM 根据原图与编辑图描述过渡，首尾帧条件的视频模型合成中间运动。数据生产使用终帧，不等于用户推理时需要提供终帧。</li><li><strong>形成配对。</strong>同一效果下有不同主体视频，训练时从同一类别抽取参考和目标，让模型学习可迁移的共性。约 13 万 / 3000 类是论文口径，不保证每个类别样本量相等。</li></ol><p>数据规模能扩展覆盖，却不能消除合成瑕疵和主体偏差：若制数据模型经常生成同一错误，迁移模型也可能学习它。真实素材中的遮挡、多人和复杂合成层级仍需额外检验。来源：<a href="https://arxiv.org/html/2603.06014v1#S3.S1">原文 §3.1 与附录 B</a>。</p></details>
+<tr><td>Token</td><td>此处指压缩视频潜变量按 patch 划分后的一项特征向量，不等于一个文字词语。</td></tr>
+<tr><td>T5</td><td>Wan 原有的文本编码器，将分析描述转换为视频生成器可读取的文字条件。</td></tr>
