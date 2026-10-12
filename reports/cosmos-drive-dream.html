@@ -1,8 +1,163 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cosmos-Drive-Dream — 论文解读</title><link rel="stylesheet" href="../assets/style.css"><script src="../assets/vendor/mermaid.min.js"></script><script>mermaid.initialize({startOnLoad:true,theme:'neutral'});</script></head><body><header class="meta-bar"><a class="back-to-index" href="../index.html">← 返回索引</a><h1>Cosmos-Drive-Dream: Scalable Synthetic Driving Data Generation with World Foundation Models</h1><div class="authors">Yifan Lu 等 · NVIDIA Research · 2026 submission</div><nav class="meta-links"><a href="https://research.nvidia.com/labs/toronto-ai/cosmos_drive_dream_submission/">📄 Project & Paper</a></nav></header><main class="wrap"><section><div class="callout good"><div class="label">5 分钟速读</div><ul><li><strong>一句话：</strong>用 world foundation model 生成可控、高保真、多视角且时空一致的驾驶视频，补充难采集的安全边缘案例。</li><li><strong>商业价值：</strong>为感知/驾驶策略训练、压力测试和安全培训生产“现实中很难拍到”的情境。</li><li><strong>关键迁移：</strong>驾驶领域的控制、数字孪生和闭环评测思路可迁移到仓库、园区和工业 EHS。</li><li><strong>最大边界：</strong>像真的视频仍可能不符合真实物理分布，不能直接作为事故证据或程序真值。</li></ul></div></section><section><h2>问题</h2><p>自动驾驶最重要的案例往往最少见：异常天气、突然横穿、特殊车辆、危险并线或传感器困难条件。真实采集慢、贵且不可控。Cosmos-Drive-Dream 试图从结构化场景与多视角条件生成视频，再用于下游训练和测试。</p><div class="intuition"><div class="label">直觉</div><p>普通数据像“记录路上遇到什么”；生成式数据像“让测试工程师点单：夜雨、施工区、遮挡行人、多相机同步，然后反复改变一个变量”。</p></div><div class="mermaid">flowchart LR
-A[地图/3D/轨迹/文本条件] --> B[可控场景构造]
-B --> C[Cosmos World Foundation Model]
-C --> D[多视角一致视频]
-D --> E[感知训练]
-D --> F[驾驶策略训练]
-D --> G[压力测试与人类培训]
-</div></section><section><h2>方法主线</h2><p>系统以 NVIDIA Cosmos world foundation model 为生成骨干，加入驾驶领域的空间、相机和时间控制。多视角生成要求同一辆车、行人和道路结构在不同相机中保持几何对应；时间一致性要求事件发展而不是逐帧漂移。论文把模型与规模化 synthetic data generation pipeline 结合，形成可重复的边缘场景生产流程。</p><p>这里的关键是“条件—生成—自动过滤—下游验证”的闭环：合成视频是否有价值，最终要看它能否改善感知或驾驶策略，而不是只看画面美感。</p></section><section><h2>实验应该怎么读</h2><p>项目报告强调可控性、多视角与时空一致，并把生成数据用于下游任务评估。对商业决策最重要的证据是：稀有事件可被参数化、批量变化并进入训练/测试流水线。任何视觉指标都不能单独证明场景频率、碰撞动力学或传感器噪声与现实相同。</p></section><section><h2>迁移到更小众的工业场景</h2><table><thead><tr><th>场景</th><th>条件</th><th>输出用途</th><th>可接受的 MVP</th></tr></thead><tbody><tr><td>叉车盲区</td><td>仓库数字孪生、轨迹、遮挡物</td><td>风险识别题、感知模型压力测试</td><td>只问“危险在哪里”，不教精细操作</td></tr><tr><td>厂区车辆与行人冲突</td><td>路线、班次、照明、天气</td><td>EHS 复盘与情境训练</td><td>专家给危险标签，生成只负责变体</td></tr><tr><td>极端天气车队培训</td><td>路线视频、天气和能见度条件</td><td>识别与决策练习</td><td>与真实案例并排使用并标明合成</td></tr></tbody></table></section><section><h2>局限与风险</h2><ul><li>生成分布可能遗漏未知边缘事件，或夸大已知事件。</li><li>多视角“看起来一致”不保证精确 3D 几何和传感器标定。</li><li>合成数据带来的下游收益可能只在特定模型和数据配比成立。</li><li>安全培训答案、法规和程序必须来自领域专家；视频不可充当事故重建证据。</li></ul></section><section><h2>复现与资源</h2><p>官方项目页提供论文、模型与演示入口；Cosmos 相关资源应以 NVIDIA 最新许可证和模型卡为准。本调研没有下载或运行模型。</p><ul><li><a href="https://research.nvidia.com/labs/toronto-ai/cosmos_drive_dream_submission/">官方项目</a></li><li><a href="https://www.nvidia.com/en-eu/glossary/world-models/">NVIDIA world model 应用说明</a></li></ul></section><section><h2>术语表</h2><dl class="glossary"><dt>edge case</dt><dd>现实中低频但对安全和系统失效很关键的情境。</dd><dt>world foundation model</dt><dd>学习物理世界时空规律、可进一步面向特定领域后训练的生成模型。</dd><dt>multi-view consistency</dt><dd>同一时刻的多个相机画面在对象身份和几何关系上相互对应。</dd></dl></section></main></body></html>
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cosmos-Drive-Dreams — 深度论文解读</title><link rel="stylesheet" href="../assets/style.css"><script>MathJax={tex:{inlineMath:[['$','$']],displayMath:[['$$','$$']]}};</script><script async src="../assets/vendor/mathjax/tex-mml-chtml.js"></script><script src="../assets/vendor/mermaid.min.js"></script><script>document.addEventListener('DOMContentLoaded',()=>mermaid.initialize({startOnLoad:true,theme:'neutral'}));</script></head>
+<body><header class="meta-bar"><a class="back-to-index" href="../index.html">← 返回索引</a><h1>Cosmos-Drive-Dreams: Scalable Synthetic Driving Data Generation with World Foundation Models</h1><div class="authors">Xuanchi Ren, Yifan Lu, Tianshi Cao, Ruiyuan Gao, Shengyu Huang 等 16 位核心作者 · NVIDIA · arXiv:2506.09042 v3, 2025</div><nav class="meta-links"><a href="https://arxiv.org/abs/2506.09042">📄 arXiv</a><a href="https://arxiv.org/pdf/2506.09042">📑 PDF</a><a href="https://research.nvidia.com/labs/toronto-ai/cosmos_drive_dreams/">🌐 Project</a><a href="https://github.com/nv-tlabs/Cosmos-Drive-Dreams">💻 Code</a><a href="https://huggingface.co/datasets/nvidia/PhysicalAI-Autonomous-Vehicle-Cosmos-Drive-Dreams">🗃️ Dataset</a><a href="https://huggingface.co/nvidia/Cosmos-Transfer1-7B-Sample-AV">⚖️ Models</a></nav></header>
+<aside class="toc-float"><strong>目录</strong><ol><li><a href="#quick">5 分钟速读</a></li><li><a href="#motivation">问题与脉络</a></li><li><a href="#bigpicture">系统总览</a></li><li><a href="#notation">符号表</a></li><li><a href="#models">模型套件</a></li><li><a href="#pipeline">SDG 管线</a></li><li><a href="#walkthrough">走一遍例子</a></li><li><a href="#experiments">实验</a></li><li><a href="#business">商业迁移</a></li><li><a href="#limits">局限</a></li><li><a href="#repro">复现</a></li><li><a href="#faq">FAQ</a></li></ol></aside>
+<main class="wrap">
+<section id="quick"><div class="callout good"><div class="label">5 分钟速读</div><ul><li><strong>论文身份：</strong>正式标题是 <em>Cosmos-Drive-Dreams</em>（复数），2025 年 NVIDIA 技术论文，不是 2026 submission。</li><li><strong>系统做法：</strong>把 HDMap、3D cuboid、ego trajectory、可选 LiDAR depth 渲染成逐像素条件；Qwen2.5-7B 改写天气/时间提示；Cosmos-Transfer1 生成单视角视频；Single2Multiview 扩成最多六视角；Qwen2.5-VL 过滤视觉伪影。</li><li><strong>论文最有力的证据：</strong>不是“视频看起来像真”，而是合成数据加入训练后，3D lane、camera/LiDAR 3D detection 与 policy learning 指标整体改善，长尾天气收益更明显。</li><li><strong>边界：</strong>论文验证的是<strong>机器训练用 synthetic data</strong>。把视频拿去做叉车/EHS 的<strong>人类培训</strong>是商业迁移设想，论文没有学员实验、知识保持或事故率证据。</li></ul></div>
+<div class="keynum-row"><div class="keynum"><div class="n">81,802</div><div class="cap">公开 synthetic clips</div></div><div class="keynum"><div class="n">7×</div><div class="cap">每个 real clip 生成的条件变体</div></div><div class="keynum"><div class="n">3%</div><div class="cap">VLM rejection 比例</div></div></div>
+<figure><img src="../assets/cosmos-drive-dream/evidence-ladder.svg" alt="Cosmos Drive Dreams 的证据阶梯"><figcaption>重绘：论文完整证明到“合成数据改善 AV 下游模型”这一层。工业视频培训属于相邻产品机会，仍需安全专家审核和学习效果实验。<details class="orig-cap"><summary>📄 数据来源</summary><p>管线与结果据论文 Figure 2、Tables 1–4；人类培训一层在论文中未实验。</p></details></figcaption></figure>
+<div class="tldr"><strong>TL;DR：</strong>Cosmos-Drive-Dreams 是一条数据工厂，而非单个 text-to-video 模型。它把现实或仿真的结构化标签锁为几何“骨架”，只让提示改写环境属性；再通过多视角扩展和 VLM rejection sampling 批量产出训练数据。其商业意义在于把低频长尾场景变成可参数化、可重复的数据增广。它并未证明生成视频可以替代物理仿真、真实道路测试、事故重建或人类安全培训。</div></section>
+
+<section id="motivation"><h2>1. 问题与研究脉络</h2><div class="intuition"><div class="label">生活化直觉</div><p>普通道路采集像“等事情发生再记录”；合成数据像“固定同一条路和车辆轨迹，只更换夜雨、浓雾、积雪、眩光，再重复出题”。关键不是多拍视频，而是让每个变体仍与可训练标签精确对应。</p></div>
+<p>自动驾驶数据有三重难题：多相机与 LiDAR 标注昂贵；突然横穿、极端天气、异常道路等安全关键事件天然低频；只在常见分布训练的模型对长尾泛化差。传统 physics-based simulator 控制强，但建模和内容制作成本高且存在 sim-to-real gap；NeRF/3D Gaussian 等 reconstruction-based simulator 逼真，却受原观测约束，难创建全新天气和事件；纯生成视频多样，却常与地图、3D box、轨迹或多相机几何不对齐。</p>
+<div class="mermaid">flowchart LR
+  A[Physics-based<br/>强控制/重资产] --> D[目标：控制 + 真实感 + 规模]
+  B[Reconstruction-based<br/>写实/受原场景束缚] --> D
+  C[Generation-based<br/>多样/几何难约束] --> D
+  D --> E[Cosmos WFM<br/>结构条件后训练 + 数据飞轮]</div><p class="mermaid-cap">论文 Section 5 的三类 simulator 关系重绘。</p>
+<p>Cosmos-Drive-Dreams 的定位是第三类，但吸收前两类优势：以 World Foundation Model 提供视觉先验，用 HDMap/3D cuboid/LiDAR 条件提供可控结构，并把结果送入真实下游模型做效用验证。</p><div class="takeaway">论文要解决的是“带可用标签、可控制、可扩规模的长尾训练数据”，并非只追求视频审美。</div></section>
+
+<section id="bigpicture"><h2>2. 系统总览：四步数据工厂</h2><p>输入可以是 RDS-HQ/Waymo 的结构化标签，也可以是普通行车视频。结构化输入直接渲染 HDMap condition；普通视频先由 annotation model 反推 HDMap 与 depth。随后 prompt rewriter 只修改天气/时段等环境属性，保持动作和空间布局。单视角模型生成 RGB，再由 multiview model 扩为固定相机组，最后 VLM 过滤物体消失、变形、纹理故障和时间跳变。</p>
+<div class="intuition"><div class="label">一句话核心</div><p>用地图、盒子和轨迹固定“发生什么、在哪里发生”，用 world model 改“看起来是什么天气和时段”，再以下游任务判断数据有没有价值。</p></div>
+<div class="mermaid">flowchart TB
+  A[结构标签：HDMap / 3D boxes / pose / LiDAR] --> R[逐相机 condition video]
+  A2[In-the-wild RGB] --> ANN[Cosmos-7B-Annotate-AV]
+  ANN --> R
+  C[原 caption] --> PR[Qwen2.5-7B Prompt Rewriter]
+  PR --> C2[7 类天气/时段变体]
+  R --> SV[Cosmos-Transfer1-7B-AV<br/>单视角 RGB]
+  C2 --> SV
+  SV --> MV[Single2Multiview-AV<br/>最多 5 个额外视角]
+  R --> MV
+  MV --> FIL[Qwen2.5-VL-7B<br/>rejection sampling]
+  FIL --> DS[合成 RGB + 原结构标签]
+  DS --> T1[3D Lane]
+  DS --> T2[3D Object Detection]
+  DS --> T3[Policy Learning]</div><p class="mermaid-cap">依据论文 Figure 2 重绘；公开 README 当前把 VLM filtering 标为 “Coming soon”。</p>
+</section>
+
+<section id="notation"><h2>3. 符号表</h2><table class="notation"><thead><tr><th>符号</th><th>含义</th><th>范围 / 单位</th></tr></thead><tbody><tr><td>$(x,y,z)$</td><td>LiDAR 点的笛卡尔坐标</td><td>米</td></tr><tr><td>$(r,\theta,\phi)$</td><td>LiDAR 点的距离、仰角、方位角</td><td>米、弧度/角度</td></tr><tr><td>$R_{s2r}$</td><td>每个训练 epoch 使用的 synthetic clips 与 real clips 数量比</td><td>$0,0.5,1,2,3$ 等</td></tr><tr><td>$N_s,N_r$</td><td>一个 epoch 中抽样的 synthetic / real clip 数</td><td>非负整数</td></tr><tr><td>F1</td><td>3D lane detection F-score</td><td>越高越好</td></tr><tr><td>LET-AP/H/L</td><td>考虑纵向定位/heading/longitudinal affinity 的 3D detection 指标</td><td>越高越好</td></tr><tr><td>mAP</td><td>多类别平均精度</td><td>越高越好</td></tr><tr><td>minADE</td><td>预测轨迹与真值的最小平均位移误差</td><td>越低越好</td></tr><tr><td>DiT</td><td>Diffusion Transformer 视频生成骨干</td><td>Cosmos 7B family</td></tr><tr><td>HDMap Video</td><td>把车道、边界、3D boxes、标志等按相机参数投影成的视频条件</td><td>与目标视频逐像素/逐帧对齐</td></tr></tbody></table>
+<div class="callout"><div class="label">公式范围说明</div><p>这是一篇系统论文，正文没有重新推导 DDPM/DiT 训练损失。它给出的显式公式主要是 LiDAR 坐标变换；关键创新以模型后训练、conditioning、token 组织和数据流程描述。以下只解释论文写出的数学，不补造“看起来像论文”的损失函数。</p></div></section>
+
+<section id="models"><h2>4. Cosmos-Drive 模型套件</h2>
+<h3>4.1 驾驶领域后训练</h3><div class="intuition"><div class="label">直觉</div><p>通用 world model 看过许多物理世界视频，但不熟悉固定车载相机、连续车道与多视角同步。先把它在大规模驾驶数据上“转专业”，后面的控制分支才不必从零学道路世界。</p></div>
+<p>基础模型 Cosmos-7B-Text2World 是 DiT 视频扩散模型。front-view 版本在 RDS 上以 batch 64、学习率 $1.5\times10^{-5}$、140K steps 后训练。RDS 约含 360 万个 20 秒、六视角 clip，约 20,000 小时；RDS-HQ 有 750 小时 30 FPS 六视角视频、HDMap、3D cuboid 与同步 LiDAR。</p>
+
+<h3>4.2 精确布局控制：Cosmos-Transfer1-7B-Sample-AV</h3><div class="intuition"><div class="label">直觉</div><p>文本说“前方有消防车”不保证消防车出现在标注框里；HDMap condition 像给生成器一张逐帧透明描图纸，让可见对象与训练标签对齐。</p></div>
+<p>系统把车道线、道路边界、杆体、斑马线、标记、交通灯/牌与 3D cuboid 放在城市级 3D 空间，按 ego-camera 内外参投影成 condition video。HDMap 和 LiDAR 用独立 ControlNet branch，可在推理时融合。base diffusion model 冻结，只训练控制分支：batch 64、learning rate $5\times10^{-5}$、25K steps。</p>
+
+<h3>4.3 单视角扩多视角</h3><div class="intuition"><div class="label">直觉</div><p>不是分别让六个模型各画一辆车，而是让所有视角 token 在同一 self-attention 中相互看见；正面干净视频作为锚，其他视角在去噪中对齐它。</p></div>
+<p>输入包含 clean input-view tokens、noisy output-view tokens、per-view embedding 与 input/output binary indicator。各视角 token 顺序拼接，所有 DiT block 的 self-attention 跨视角联合注意；cross-attention 则按视角读取各自文本。训练分辨率 $576\times1024$、57 帧；训练时随机选择输入视角 + 5 个输出中的 3 个，共 4 views，以控制 context 长度；推理可同时生成全部 5 个输出。</p>
+<p>模型先在 2,000 小时内部驾驶视频上 batch 32、学习率 $5\times10^{-5}$、30K steps；随后冻结 base，在 RDS-HQ 上训练 HDMap/LiDAR multiview ControlNet，batch 32、同学习率、20K steps。</p>
+
+<h3>4.4 In-the-wild 自动标注</h3><p>Cosmos-7B-Annotate-Sample-AV 把普通 RGB 行车视频变成 HDMap 与 LiDAR-style depth。视频 tokens 与待生成 tokens 沿 channel 拼接；cross-attention 中不再用文本，而用每种输出 modality 的 trainable context embedding。这样同一架构可在部分样本缺某种输出时混合训练。模型在 RDS-HQ 上 batch 32、learning rate $2\times10^{-5}$、30K steps。</p>
+
+<h3>4.5 LiDAR 表示与生成</h3><div class="intuition"><div class="label">直觉</div><p>把旋转激光雷达的点云铺成“深度图”之前，必须尊重 128 条 beam 的非均匀仰角和扫描时间；否则移动中的车会留下幽灵点。</p></div>
+<div class="eq-card"><div class="eq">$$r=\sqrt{x^2+y^2+z^2},\qquad \phi=\operatorname{atan2}(y,x),\qquad \theta=\arcsin(z/r)$$</div><dl class="eq-explain"><dt>是什么</dt><dd>从笛卡尔点云转到球坐标 range map。</dd><dt>逐符号</dt><dd>$r$ 是到传感器距离，$\phi$ 是水平 azimuth，$\theta$ 是 elevation；$(x,y,z)$ 是单点坐标。</dd><dt>为什么还不够</dt><dd>真实 LiDAR 完成 360° 扫描约需 0.1 秒，车辆在移动；128 beams 的仰角非均匀，各 beam 的 azimuth 也略不同。论文用具体 sensor profile 反解 motion compensation 与像素行列，避免 ghost pixels。</dd></dl></div>
+<p>tokenizer 使用 float32 处理 range 精度，进入 diffusion 后才转 bfloat16；每行重复四次增加时空冗余；range 裁到 2nd–98th percentile 并归一化到 $[-1,1]$。HDMap→LiDAR 通过 clean condition latent 与 noisy LiDAR latent channel concat；RGB→LiDAR 则类似多视角生成，读取 front、rear-left、rear-right。</p><div class="takeaway">模型套件把“生成视频”拆成基础驾驶先验、结构控制、多视角一致、反向标注和 LiDAR 五个可组合能力。</div></section>
+
+<section id="pipeline"><h2>5. SDG 管线：多样化、过滤、配比</h2>
+<h3>5.1 Prompt Rewriter 只改环境，不改事件</h3><p>Qwen2.5-7B-Instruct 接收原 caption，改写 golden hour、morning、night、rainy、snowy、sunny、foggy 等属性；system prompt 明确要求保持场景核心内容与动作，且不能留下与新天气矛盾的描述。这里的设计原则是“标签结构固定、appearance 多样”。</p>
+
+<h3>5.2 VLM rejection sampling</h3><p>Qwen2.5-VL-7B-Instruct 检查 object disappearance、shape distortion、texture/rendering glitches、object inconsistency、background artifacts 与 temporal discontinuity，把输出分为 Clean / Artifacted。论文对 RDS-HQ 与 Waymo 合成集过滤掉 3%。这只是一种视觉质量过滤；VLM 没有验证碰撞动力学、交通规则或传感器概率模型。</p>
+
+<h3>5.3 合成/真实配比</h3><div class="intuition"><div class="label">直觉</div><p>数据仓库里可以有真实数据七倍的合成样本，但训练每一轮不必全塞进去。$R_{s2r}$ 是“这轮喂多少”，用它研究合成数据的边际收益与过量风险。</p></div><div class="eq-card"><div class="eq">$$R_{s2r}=\frac{N_s}{N_r}$$</div><dl class="eq-explain"><dt>是什么</dt><dd>本文实验的 synthetic-to-real sampling ratio。</dd><dt>逐符号</dt><dd>$N_s$ 是一个 epoch 随机抽取的合成 clips，$N_r$ 是真实 clips；$R_{s2r}=1$ 表示数量相等，w/o SDG 表示 $R_{s2r}=0$。</dd><dt>为什么</dt><dd>把“生成总量”与“训练时实际暴露量”分开，能公平比较配比。论文为每个 real clip 生成 7 个变体，但按任务只采样其中一部分。</dd></dl></div>
+<p>合成 RGB clip 为 $704\times1280$、121 帧、30 FPS（约 4.03 秒）；多视角用前 57 帧，输出 $576\times1024$。公开数据集含 5,843 个 10 秒真实结构标签 clip 和 81,802 个 synthetic clips。</p></section>
+
+<section id="walkthrough"><h2>6. 走一遍例子：同一匝道变成“夜雨急救车会车”训练样本</h2><ol class="walkthrough"><li class="step"><strong>固定结构：</strong>读取真实/仿真 HDMap、ego pose、车道、交通灯和 3D boxes。假设原 clip 是晴天匝道并线。</li><li class="step"><strong>渲染条件：</strong>按六个车载相机内外参，把 lane/box/road boundary 投到各帧。目标 RGB 如何变化，labels 仍来自这套结构。</li><li class="step"><strong>改写 caption：</strong>Qwen 只把时段/天气改成“夜间大雨”，并保持 ego 并线与周边车辆动作。若要新增急救车，它应先存在于 3D box/交通场景条件里，不能只靠文字随意插入后继续沿用旧标签。</li><li class="step"><strong>生成 front view：</strong>Cosmos-Transfer1 用 HDMap ControlNet + caption 生成 121 帧 RGB；可选 LiDAR condition 约束细几何。</li><li class="step"><strong>扩视角：</strong>前 57 帧 front video 作为 clean anchor，联合生成 rear/side 等五个输出视角。</li><li class="step"><strong>自动过滤：</strong>VLM 若发现救护车消失、box 内对象变形或雨中背景跳变则丢弃。剩余 clip 与原结构标签组成训练 pair。</li><li class="step"><strong>下游验收：</strong>以真实 held-out 极端天气测试 3D lane/box 或 policy minADE；视频主观好看不是验收终点。</li></ol><div class="callout warn"><div class="label">例子中的关键边界</div><p>论文 prompt rewriter 只应改环境属性并保持内容/布局；新增交通参与者需要同步修改结构标签。否则画面与监督标签会冲突。</p></div></section>
+
+<section id="experiments"><h2>7. 实验：下游任务才是关键证据</h2>
+<h3>7.1 3D Lane Detection（Table 1 摘要）</h3><p>Waymo 用 504 clips 训练、144 验证；RDS-HQ 有独立 2.8K challenging test clips。检测器为 LATR。看极端天气列：普通像素增强有时有效，但 Cosmos SDG 在 rainy/foggy/night 结果更稳定。</p>
+<div style="overflow-x:auto"><table><thead><tr><th rowspan="2">训练增强</th><th colspan="3">Waymo F1</th><th colspan="4">RDS-HQ (2K) F1</th></tr><tr><th>All</th><th>Extreme</th><th>Night</th><th>All</th><th>Rainy</th><th>Foggy</th><th>Night</th></tr></thead><tbody><tr><td>w/o SDG</td><td>0.428</td><td>0.378</td><td>0.402</td><td>0.532</td><td>0.458</td><td>0.524</td><td>0.547</td></tr><tr><td>Albumentations $R=0.5$</td><td>0.446</td><td>0.389</td><td>0.412</td><td>0.548</td><td>0.483</td><td>0.548</td><td>0.563</td></tr><tr><td>Cosmos $R=0.5$</td><td>0.448</td><td class="best">0.417</td><td>0.431</td><td>0.564</td><td>0.500</td><td class="best">0.573</td><td>0.575</td></tr><tr><td>Cosmos $R=1$</td><td class="best">0.451</td><td>0.404</td><td class="best">0.455</td><td class="best">0.566</td><td class="best">0.506</td><td>0.572</td><td class="best">0.581</td></tr></tbody></table></div>
+<p>相对无 SDG，RDS-HQ rainy F1 从 .458 到 .506，约 +10.5%；foggy 从 .524 到 .573（$R=.5$），约 +9.4%。Waymo extreme weather 在 $R=.5$ 最好而非 $R=1$，说明“更多合成比例必然更好”并不成立。</p>
+
+<h3>7.2 Camera 3D Object Detection（LET-AP 摘要）</h3><table><thead><tr><th>数据设置</th><th>指标</th><th>w/o SDG</th><th>$R=.5$</th><th>$R=1$</th><th>最好变化</th></tr></thead><tbody><tr><td>Waymo All</td><td>LET-AP</td><td>0.625</td><td class="best">0.634</td><td>0.627</td><td>+0.009</td></tr><tr><td>Waymo Night</td><td>LET-AP</td><td>0.580</td><td class="best">0.599</td><td>0.598</td><td>+0.019</td></tr><tr><td>RDS-HQ 2K All</td><td>LET-AP</td><td>0.299</td><td>0.332</td><td class="best">0.337</td><td>+0.038</td></tr><tr><td>RDS-HQ 2K Rainy</td><td>LET-AP</td><td>0.280</td><td>0.316</td><td class="best">0.323</td><td>+0.043</td></tr><tr><td>RDS-HQ 20K All</td><td>LET-AP</td><td>0.459</td><td>0.477</td><td class="best">0.489</td><td>+0.030</td></tr><tr><td>RDS-HQ 2K multiview All</td><td>LET-AP</td><td>0.333</td><td class="best">0.345</td><td>0.335</td><td>+0.012</td></tr></tbody></table>
+<p>作者还用与 real training clips 不重叠的 52K HDMap 生成 420K 数据，并在 RDS-HQ-HL human-labeled set 测试。论文通过曲线线性插值称 1K human-labeled + SDG 约等同 93K human-labeled 的表现；这是特定检测器、数据与插值下的结果，不宜外推成普遍“节省 93 倍标注”。</p>
+
+<h3>7.3 LiDAR 3D Object Detection（Table 3）</h3><table><thead><tr><th>训练集</th><th>设置</th><th class="num">mAP</th><th class="num">Car</th><th class="num">Bus</th><th class="num">Truck</th></tr></thead><tbody><tr><td>RDS-HQ 1K</td><td>w/o SDG</td><td>0.240</td><td class="best">0.371</td><td>0.155</td><td>0.195</td></tr><tr><td>RDS-HQ 1K</td><td>w/ SDG</td><td class="best">0.250</td><td>0.366</td><td class="best">0.181</td><td class="best">0.203</td></tr><tr><td>RDS-HQ 2K</td><td>w/o SDG</td><td>0.289</td><td class="best">0.402</td><td>0.225</td><td>0.240</td></tr><tr><td>RDS-HQ 2K</td><td>w/ SDG</td><td class="best">0.297</td><td>0.399</td><td class="best">0.248</td><td class="best">0.246</td></tr></tbody></table><p>mAP、Bus、Truck 提升，但 Car AP 略降。这再次说明收益是任务/类别相关，不是所有指标同时上升。</p>
+
+<h3>7.4 Policy Learning（Table 4）</h3><div style="overflow-x:auto"><table><thead><tr><th>$R_{s2r}$</th><th>30K real</th><th>50K</th><th>70K</th><th>100K</th><th>135K</th></tr></thead><tbody><tr><td>0</td><td>1.307</td><td>1.182</td><td>1.116</td><td>1.060</td><td>1.026</td></tr><tr><td>0.5</td><td>1.226</td><td>1.146</td><td>1.077</td><td>1.027</td><td>0.986</td></tr><tr><td>1</td><td>1.202</td><td>1.124</td><td>1.065</td><td>1.008</td><td>0.980</td></tr><tr><td>2</td><td>1.189</td><td>1.109</td><td>1.046</td><td>1.007</td><td>0.979</td></tr><tr><td>3</td><td class="best">1.183</td><td class="best">1.089</td><td class="best">1.041</td><td class="best">1.003</td><td class="best">0.976</td></tr></tbody></table></div><p>minADE 越低越好。9 帧 front camera 输入预测未来 5 秒轨迹；测试为 3K balanced RDS-Bench[Policy]。在所有 real data 规模上，合成配比提高都降低误差，但增益随 real data 增多而缩小。</p>
+<table><thead><tr><th>Targeted SDG 比例</th><th class="num">All minADE</th><th class="num">VRU</th><th class="num">Left-turn</th></tr></thead><tbody><tr><td>0</td><td class="best">0.920</td><td>0.774</td><td>1.269</td></tr><tr><td>0.007</td><td>0.917</td><td>0.750</td><td>1.265</td></tr><tr><td>0.013</td><td>0.919</td><td>0.697</td><td>1.203</td></tr><tr><td>0.020</td><td>0.923</td><td class="best">0.692</td><td class="best">1.186</td></tr></tbody></table><p>只加入 2% 针对性 VRU/left-turn SDG，相关子集显著改善，但 overall 略从 .920 变 .923。这说明 targeted synthesis 可修局部短板，也可能带来分布权衡。</p>
+<details class="dig"><summary>深入（可跳过）：实验能说明与不能说明的事</summary><ul><li>能说明：在论文的模型、split 与配比下，synthetic augmentation 提升多项 held-out real-world 指标。</li><li>不能说明：生成分布等于真实事故概率；通过 VLM 的视频满足物理/法规真值；任意行业或任意模型都得到相同增益。</li><li>没有传统模块 ablation 表：主要“消融”来自 $R_{s2r}$、real data scale、普通增强 vs SDG、single vs multiview、随机 vs targeted SDG。</li></ul></details><div class="takeaway">最可信的结论是“受结构控制的合成数据在多个 AV 下游任务上有增益”；效果随任务、类别与配比变化。</div></section>
+
+<section id="business"><h2>8. 小众商业迁移：合成数据与人类培训必须分开</h2>
+<table><thead><tr><th>场景</th><th>与论文最接近的产品</th><th>可落地 MVP</th><th>额外证据</th></tr></thead><tbody><tr><td>叉车盲区感知模型</td><td><strong>机器训练数据</strong>：仓库 digital twin / map + 人车轨迹 → 多视角边缘事件</td><td>固定 5–10 个高风险布局，生成光照/遮挡变体；在真实仓库 held-out 数据测检测 recall</td><td>域适配、工业相机标定、真实事故/near-miss 标签</td></tr><tr><td>矿区/港区车辆冲突预警</td><td><strong>机器压力测试</strong>：稀有天气、粉尘、夜间、特殊车辆</td><td>结构标签锁定轨迹，生成 appearance；用于感知回归测试</td><td>传感器物理、粉尘/雨雾分布与法规验证</td></tr><tr><td>厂区 EHS 危险识别培训</td><td><strong>人类培训内容</strong>：同一布局生成多种风险观察题</td><td>只训练“发现危险点”，答案由 EHS 专家写；合成内容显著标记</td><td>学员 pre/post test、保持率、迁移到现场、误导风险</td></tr><tr><td>车队极端天气决策演练</td><td><strong>人类情境练习</strong>：同路线多天气视频</td><td>视频只作情境呈现，操作阈值与 SOP 来自企业规范</td><td>驾驶教练审核、模拟器/实车交叉验证</td></tr><tr><td>保险风险工程案例库</td><td><strong>内容辅助</strong>：低频 near-miss 的可视化变体</td><td>生成示意案例，不作为事故还原证据</td><td>法律审查、合成标识、真实证据链隔离</td></tr></tbody></table>
+<figure><img src="../assets/cosmos-drive-dream/transfer-boundary.svg" alt="机器训练与人类培训的产品边界"><figcaption>迁移边界：左路有论文 Tables 1–4 的直接支持；右路是潜在商业场景，必须新增人类学习与安全验证。不能用左路指标替代右路证据。</figcaption></figure>
+<div class="callout warn"><div class="label">两类“训练”</div><p><strong>模型训练：</strong>论文把合成视频输入 lane/object/policy 模型，有真实 test set 指标。<strong>人员培训：</strong>让员工观看视频学习 SOP，论文完全没有实验。中文里都叫“训练”，但产品、风险、指标和采购方不同。</p></div>
+<p>商业进入点应优先选择结构资产已经存在的客户：有 CAD/HDMap/digital twin、固定相机标定、near-miss 标签和真实 validation set 的仓库、矿区、港区或封闭园区。没有结构条件时，只用文本生成“事故视频”，监督标签与物理可信度难以管理。</p></section>
+
+<section id="limits"><h2>9. 局限、风险与开放问题</h2><ul><li><strong>私有数据依赖：</strong>核心后训练使用 20,000 小时 RDS 与 750 小时 RDS-HQ，外部团队无法完全重建同一基础；公开的是子集、合成数据、权重和工具。</li><li><strong>过滤不等于物理验证：</strong>Qwen2.5-VL 主要找视觉伪影；它不保证车辆动力学、碰撞可达性、法规行为或传感器噪声正确。</li><li><strong>标签一致仍可能有偏差：</strong>HDMap 控住投影布局，但遮挡、光照、物体表面与 depth 可能和真实 sensor 分布不同。</li><li><strong>多视角一致是学习式：</strong>跨 view attention 提高一致性，不等同于显式 3D render 的像素级几何保证。</li><li><strong>公开流程尚有缺口：</strong>GitHub Quick Start 的 Step 5 “Filtering via VLM” 仍标 Coming soon；完整论文流水线不能完全一键复现。</li><li><strong>配比敏感：</strong>Waymo lane extreme 与 multiview object detection 中 $R=.5$ 可优于 $R=1$；过多 synthetic 可能造成分布偏移。</li><li><strong>人类培训无证据：</strong>不能把 perception/policy 指标外推为员工学习或事故下降。</li><li><strong>版本快速变化：</strong>仓库后续已加入 World Scenario renderer / Transfer 2.5，复现论文需锁定对应 commit、模型与许可。</li></ul></section>
+
+<section id="repro"><h2>10. 复现指南（官方命令整理，未执行）</h2>
+<h3>10.1 环境</h3><p>官方测试 Ubuntu 20.04.5 / 22.04.5，推荐 Conda。INSTALL 当前使用 Python 3.12 路径、CUDA 12.8 FlashInfer wheel、vLLM 0.9.0 与 Transformer Engine 2.4.0；版本耦合较强。</p>
+<pre><code>git clone git@github.com:nv-tlabs/Cosmos-Drive-Dreams.git
+cd Cosmos-Drive-Dreams
+git submodule update --init --recursive
+
+conda env create --file environment.yaml
+conda activate cosmos-drive-dreams
+pip install -r requirements.txt
+
+pip install https://download.pytorch.org/whl/cu128/flashinfer/flashinfer_python-0.2.5%2Bcu128torch2.7-cp38-abi3-linux_x86_64.whl
+export VLLM_ATTENTION_BACKEND=FLASHINFER
+pip install vllm==0.9.0
+pip install 'transformer-engine[pytorch]==2.4.0'</code></pre>
+<p>官方 INSTALL 还要求在 Conda 环境内修补 NVIDIA include symlink；这会修改当前 environment，具体命令请直接查看 <a href="https://github.com/nv-tlabs/Cosmos-Drive-Dreams/blob/main/INSTALL.md">INSTALL.md</a>。</p>
+
+<h3>10.2 接受许可并下载模型</h3><pre><code>huggingface-cli login
+cd cosmos-transfer1
+PYTHONPATH=$(pwd) python scripts/download_checkpoints.py \
+  --output_dir checkpoints/ --model 7b_av
+cd ..</code></pre><p>需先接受 Llama-Guard-3-8B、Cosmos tokenizer/guardrail 等 gated 条款。官方说明 checkpoint 约需 <strong>300GB</strong> 空间；不同组件许可应逐项核对。</p>
+
+<h3>10.3 用仓库自带 example 跑完整可公开部分</h3><pre><code># 1) Render multi-view HDMap condition videos
+cd cosmos-drive-dreams-toolkits
+python render_from_rds_hq.py \
+  -i ../assets/example -o ../outputs -d rds_hq_mv \
+  --skip lidar --skip world_scenario
+cd ..
+
+# 2) Rewrite captions
+python scripts/rewrite_caption.py \
+  -i assets/example/captions -o outputs/captions
+
+# 3) Generate front view
+PYTHONPATH="cosmos-transfer1" python scripts/generate_video_single_view.py \
+  --caption_path outputs/captions \
+  --input_path outputs \
+  --video_save_folder outputs/single_view \
+  --checkpoint_dir checkpoints/ \
+  --is_av_sample \
+  --controlnet_specs assets/sample_av_hdmap_spec.json
+
+# 4) Expand to multiview
+CUDA_HOME=$CONDA_PREFIX PYTHONPATH="cosmos-transfer1" \
+python scripts/generate_video_multi_view.py \
+  --caption_path outputs/captions \
+  --input_path outputs \
+  --input_view_path outputs/single_view \
+  --video_save_folder outputs/multi_view \
+  --checkpoint_dir checkpoints \
+  --is_av_sample \
+  --controlnet_specs assets/sample_av_hdmap_multiview_spec.json</code></pre>
+<div class="callout warn"><div class="label">当前缺失步骤</div><p>官方 README 的 Step 5 “Filtering via VLM” 仍写 <strong>Coming soon</strong>。论文描述了 Qwen2.5-VL-7B rejection prompt，但仓库 Quick Start 尚未给该步可执行命令；不能声称公开管线已完全一键复现。</p></div>
+
+<h3>10.4 数据下载与资源量</h3><pre><code># 全部约 3TB
+python scripts/download.py --odir YOUR_DATASET_PATH \
+  --workers YOUR_WORKER_NUMBER
+
+# 只下载 HDMap
+python scripts/download.py --odir YOUR_DATASET_PATH \
+  --file_types hdmap --workers YOUR_WORKER_NUMBER
+
+# 只下载 synthetic video，约 700GB
+python scripts/download.py --odir YOUR_DATASET_PATH \
+  --file_types synthetic --workers YOUR_WORKER_NUMBER</code></pre>
+<p>公开 dataset 描述为 5,843 个 10 秒 labels clips + 81,802 synthetic samples；synthetic video 每条 121 帧。大规模训练算力未在论文中给出完整 GPU 数/时长；不要用推理硬件估算冒充论文事实。</p>
+<details class="dig"><summary>复现检查清单</summary><ul><li>锁定论文 v3（2025-06-18）和对应仓库 commit，避免混入 2025-10 后的 World Scenario/Transfer 2.5 变化。</li><li>先跑 assets/example；大数据前确认至少 300GB checkpoints 与相应输出空间。</li><li>Waymo/RDS 输入需要相机内外参、pose、HDMap/box 时序同步；错一帧会破坏“pixel-aligned”监督。</li><li>训练下游模型时记录每 epoch 的 $R_{s2r}$，不要只记录数据仓库总体 7×。</li><li>用真实 held-out set 做最终判断，并按 weather/time/category 切分，防止 overall 指标掩盖长尾退化。</li></ul></details></section>
+
+<section id="faq" class="faq"><h2>11. 常见疑问</h2><details><summary>这是不是“文本生成驾驶视频”的模型？</summary><p>只是其中一部分。论文核心是由多个 Cosmos-Drive 模型、条件渲染、prompt rewrite、多视角扩展、过滤和下游训练组成的 SDG pipeline。</p></details><details><summary>视频足够逼真，就能作为事故仿真吗？</summary><p>不能。视觉真实感不等于动力学、碰撞、传感器与概率分布真实。事故重建还需要有证据链的物理/工程模型。</p></details><details><summary>为什么要先单视角再扩多视角？</summary><p>单视角精确布局控制较成熟，front view 可作为 clean anchor；第二个模型让其他视角联合注意该锚点，降低六路独立生成的不一致。</p></details><details><summary>81,802 条公开数据能直接商用吗？</summary><p>官方 README 称该 dataset 可用于 commercial/non-commercial use，但模型、基础数据、Llama Guard 与各组件有各自条款。正式产品需按使用组件逐项核对最新许可证。</p></details><details><summary>论文证明了 EHS 视频培训有效吗？</summary><p>没有。它证明的是合成数据改善若干 AV 模型指标。人类培训需要独立的理解、决策、保持率与现场迁移实验。</p></details></section>
+
+<section id="glossary"><h2>12. 术语表</h2><dl class="glossary"><dt>WFM</dt><dd>World Foundation Model，从大规模物理世界视频学习时空先验、可面向具体领域后训练。</dd><dt>SDG</dt><dd>Synthetic Data Generation，合成数据生成。</dd><dt>ControlNet</dt><dd>向冻结生成模型注入 depth、HDMap 等空间控制的分支。</dd><dt>RDS / RDS-HQ</dt><dd>NVIDIA 内部 Real Driving Scene 数据系列；HQ 版本含高质量多视角、地图、3D box 与 LiDAR。</dd><dt>HDMap</dt><dd>高精地图及动态 3D cuboid 等结构化标签；论文把它们投影为 condition video。</dd><dt>Rejection sampling</dt><dd>多生成，再用质量判别器丢弃明显失败样本。</dd><dt>VRU</dt><dd>Vulnerable Road User，如行人、骑行者等。</dd><dt>Sim-to-real gap</dt><dd>合成/仿真数据分布与真实传感器世界之间的差距。</dd></dl></section>
+<section><h2>核读来源</h2><p>本页依据 arXiv:2506.09042 v3 全文、NVIDIA 官方项目页、nv-tlabs 官方仓库 README/INSTALL、Hugging Face 模型与数据页整理；精确实验数字来自 Tables 1–4。最后核查：2026-10-12。命令仅引用，未执行。</p></section>
+</main></body></html>

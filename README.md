@@ -9,7 +9,9 @@
 - 特殊教育个性化 Social Story 视频
 - 罕见事故与边缘事件安全训练
 
-同时包含 Soap2Soap、MovieAgent、ShowHowTo、Neural Sign Actors、SS-Bench、VideoDirectorGPT 和 Cosmos-Drive-Dream 等论文解读。
+同时包含 Soap2Soap、MovieAgent、ShowHowTo、Neural Sign Actors、SS-Bench / SS-GEN、VideoDirectorGPT 和 Cosmos-Drive-Dreams 等论文深度解读，覆盖方法流程、公式、实验、局限与复现资源。
+
+入口为 `index.html`；商业场景比较位于 `comparisons/commercial-opportunities.html`，技术路线对照位于 `comparisons/technical-roadmap.html`，单篇报告位于 `reports/`。
 
 ## 在线阅读
 

@@ -1,1 +1,146 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SS-Bench / SS-GEN — 论文解读</title><link rel="stylesheet" href="../assets/style.css"><script>MathJax={tex:{inlineMath:[['$','$']],displayMath:[['$$','$$']]}};</script><script async src="../assets/vendor/mathjax/tex-mml-chtml.js"></script></head><body><header class="meta-bar"><a class="back-to-index" href="../index.html">← 返回索引</a><h1>SS-Bench / SS-GEN: Social Story Generation and Evaluation</h1><div class="authors">Yi Feng 等 · arXiv 2024 / AAAI 2025 Oral 项目</div><nav class="meta-links"><a href="https://arxiv.org/abs/2406.15695">📄 arXiv</a><a href="https://github.com/MIMIFY/SS-GEN">💻 Code & Data</a></nav></header><main class="wrap"><section><div class="callout good"><div class="label">5 分钟速读</div><ul><li><strong>一句话：</strong>用严格约束、分层扩增和人工过滤构建 5,085 条 Social Stories，并评测小模型生成。</li><li><strong>为什么相关：</strong>它不是视频论文，却提供特殊教育视频最重要的“正确脚本层”。</li><li><strong>约束：</strong>结构清晰、描述多于指令、积极耐心、精确且不强迫。</li><li><strong>商业方式：</strong>作为教师/治疗师的辅助创作工具，脚本获批后再进入视频生成。</li></ul></div><div class="keynum-row"><div class="keynum"><div class="n">5,085</div><div class="cap">故事</div></div><div class="keynum"><div class="n">57</div><div class="cap">主题章节</div></div><div class="keynum"><div class="n">179</div><div class="cap">人工种子</div></div></div></section><section><h2>任务与约束</h2><p>Social Story 用来帮助自闭症儿童理解具体社会情境和日常变化。传统故事由专家按规则编写，成本高、覆盖有限。作者把故事表示为标题/目标 $x$ 与内容 $y$ 的配对：</p><div class="eq-card"><div class="eq">$$M(x)=y$$</div><dl class="eq-explain"><dt>是什么</dt><dd>语言模型 $M$ 根据情境目标 $x$ 生成包含引入、主体与结论的故事 $y$。</dd><dt>为什么不够</dt><dd>普通“写个故事”提示无法保证语气、安全和句子比例，因此作者加入结构化规则与过滤。</dd></dl></div><div class="eq-card"><div class="eq">$$\frac{\#\text{Descriptive Sentences}}{\#\text{Coaching Sentences}}\geq 2$$</div><dl class="eq-explain"><dt>是什么</dt><dd>描述性句子至少是指导性句子的两倍。</dd><dt>直觉</dt><dd>先帮助孩子理解会发生什么和为什么，再温和说明可以怎样做，避免故事像命令清单。</dd></dl></div></section><section><h2>StarSow 方法</h2><ol class="walkthrough"><li class="step"><strong>Taking Root：</strong>从 14 个章节、179 条人工故事抽象主题与解释。</li><li class="step"><strong>Branching Out：</strong>在每个主题下生成多样化情境标题。</li><li class="step"><strong>Bearing Star Fruits：</strong>用结构、描述取向与情境安全约束写完整故事。</li><li class="step"><strong>Gardening Work：</strong>用 ROUGE-L 去重、规则过滤和人工复核剔除不合格内容。</li></ol><p>新章节或标题与既有项的最高 ROUGE-L 相似度需低于 0.7，避免只是改写种子。</p></section><section><h2>实验</h2><table><thead><tr><th>证据</th><th>原文结果</th><th>怎样解释</th></tr></thead><tbody><tr><td>数据规模</td><td>57 章节、每章至少 70 标题、总计 5,085 对</td><td>覆盖广于 179 条种子</td></tr><tr><td>GPT-4 vs GPT-3 人工偏好</td><td>62% vs 38%</td><td>只是在两组再生成故事之间比较</td></tr><tr><td>积极耐心语气</td><td>GPT-4 样本 98% 通过</td><td>100 个再生成样本、作者定义的检查项</td></tr><tr><td>描述多于指令</td><td>GPT-4 样本 59% 通过</td><td>仍是明显弱点，不能跳过人工修改</td></tr><tr><td>小模型 SFT</td><td>多数模型传统指标显著提升</td><td>说明数据可用于低成本部署，不证明干预疗效</td></tr></tbody></table></section><section><h2>从文本到视频的正确迁移</h2><p>先生成和审核 $y$，再把每个描述性句子映射为镜头。视觉层只能表现已批准内容，不可自行补充“正确行为”。人物、地点、噪声、灯光变化等个性化信息应由教师/照护者提供；Soap2Soap 一类的视觉锚点可保持熟悉人物与场所。</p><div class="callout warn"><div class="label">证据边界</div><p>论文没有生成视频，没有与儿童开展临床试验，也没有证明自动故事能改善行为。商业产品应定位为专业人员的备课/内容工具。</p></div></section><section><h2>复现指南</h2><p>官方仓库公开 StarSow 脚本、技术附录和数据目录。README 给出 OpenAI API 驱动的数据扩增命令；执行前需自行配置 API、审核种子数据和隐私。这里未运行代码。</p><ul><li><a href="https://github.com/MIMIFY/SS-GEN">官方仓库</a></li><li><a href="https://arxiv.org/html/2406.15695v1">论文 HTML</a></li><li><a href="https://historicengland.org.uk/advice/inclusion/make-heritage-accessible/visual-story/">现实需求：场馆 visual story 指南</a></li></ul></section><section><h2>术语表</h2><dl class="glossary"><dt>Social Story</dt><dd>按特定准则帮助理解社会情境的个性化故事。</dd><dt>Descriptive Orientation</dt><dd>强调描述事件与原因，减少直接命令。</dd><dt>Situational Safety</dt><dd>使用合适人称、积极语气、明确且精确的词汇。</dd></dl></section></main></body></html>
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SS-GEN — 深度论文解读</title><link rel="stylesheet" href="../assets/style.css"><script>MathJax={tex:{inlineMath:[['$','$']],displayMath:[['$$','$$']]}};</script><script async src="../assets/vendor/mathjax/tex-mml-chtml.js"></script><script src="../assets/vendor/mermaid.min.js"></script><script>document.addEventListener('DOMContentLoaded',()=>mermaid.initialize({startOnLoad:true,theme:'neutral'}));</script></head>
+<body><header class="meta-bar"><a class="back-to-index" href="../index.html">← 返回索引</a><h1>SS-GEN: A Social Story Generation Framework with Large Language Models</h1><div class="authors">Yi Feng, Mingyang Song, Jiaqi Wang, Zhuang Chen, Guanqun Bi, Minlie Huang, Liping Jing, Jian Yu · 北京交通大学 / 腾讯混元与优图 / 中南大学 / 清华大学 · AAAI 2025 Oral</div><nav class="meta-links"><a href="https://arxiv.org/abs/2406.15695">📄 arXiv</a><a href="https://ojs.aaai.org/index.php/AAAI/article/view/32119">🏛️ AAAI</a><a href="https://github.com/MIMIFY/SS-GEN">💻 Code &amp; Data</a><a href="https://huggingface.co/datasets/FMiMiY/SS-GEN">🤗 Dataset</a><a class="disabled" href="#">⚖️ 模型权重未公开</a></nav></header>
+<aside class="toc-float"><strong>目录</strong><ol><li><a href="#quick">5 分钟速读</a></li><li><a href="#boundary">先校正论文身份</a></li><li><a href="#motivation">动机与脉络</a></li><li><a href="#bigpicture">方法总览</a></li><li><a href="#notation">符号表</a></li><li><a href="#method">方法详解</a></li><li><a href="#walkthrough">完整例子</a></li><li><a href="#experiments">实验</a></li><li><a href="#video">迁移到视频</a></li><li><a href="#limits">局限</a></li><li><a href="#repro">复现</a></li><li><a href="#faq">FAQ</a></li></ol></aside>
+<main class="wrap">
+<section id="quick"><div class="callout good"><div class="label">5 分钟速读</div><ul><li><strong>它做的事：</strong>用 STARSOW 从 14 个章节、179 篇人工 Social Stories 出发，经层级扩增和人工过滤得到 57 个章节、5,085 个 title–story pair；再用这些数据 LoRA 微调 2B–8B 模型。</li><li><strong>它没有做的事：</strong>没有生成视频，没有提出名为“SS-Bench”的独立视频 benchmark，也没有对自闭症儿童做随机对照或临床干预试验。</li><li><strong>主要结果：</strong>Gemma 2B 微调后 BLEU-4 8.86→51.18、ROUGE-L 7.22→27.29、BERTScore 79.0→88.8；人评 situational safety 10.0%→83.3%，但 descriptive orientation 90.0%→83.3% 反而下降。</li><li><strong>商业价值：</strong>它可以成为“特殊教育个性化视频”的受约束脚本层和质量清单；专业人员审批脚本后，再进入分镜和视频生成。</li></ul></div>
+<div class="keynum-row"><div class="keynum"><div class="n">5,085</div><div class="cap">Title–Story pairs</div></div><div class="keynum"><div class="n">57</div><div class="cap">主题章节</div></div><div class="keynum"><div class="n">4×4090</div><div class="cap">论文 SFT 实验硬件</div></div></div>
+<figure><img src="../assets/ss-bench/evidence-boundary.svg" alt="SS-GEN 的证据边界"><figcaption>重绘：论文证据停在“数据集质量与语言模型生成质量”。把脚本转成视频是合理的产品迁移假设；儿童理解、行为改善或临床疗效必须另做研究。<details class="orig-cap"><summary>📄 数据来源</summary><p>依据论文任务定义、实验章节和结论重绘；论文中没有视频生成或临床试验。</p></details></figcaption></figure>
+<div class="tldr"><strong>TL;DR：</strong>SS-GEN 的价值不在“LLM 会写故事”这个宽泛结论，而在把 Social Story 的三类专业约束拆成可生成、可检查的流程：Structural Clarity、Descriptive Orientation、Situational Safety。STARSOW 的层级扩增先扩主题，再扩 intervention title，最后写全文，避免一次提示直接堆出同质故事。实验支持 SFT 能显著提升文本相似度和多项质量评分，但它只验证了文本生成系统，不应被写成视频论文或临床疗效证据。</div></section>
+
+<section id="boundary"><h2>1. 先校正论文身份与证据等级</h2><div class="callout warn"><div class="label">命名校正</div><p><a href="https://arxiv.org/html/2406.15695v1">2024 年 arXiv v1</a> 的原题确实是 <strong>SS-Bench: A Benchmark for Social Story Generation and Evaluation</strong>；AAAI 2025 正式版及当前官方仓库改名为 <strong>SS-GEN</strong>。两者是同一研究的不同版本，作者名单和实验呈现也有变化。本页按 AAAI 2025 正式版解读，保留 <code>ss-bench.html</code> 文件名以兼容原链接；不混用不同版本的表号或数字。</p></div>
+<table><thead><tr><th>可以据论文声称</th><th>不能据论文声称</th></tr></thead><tbody><tr><td>构建了 5,085 条受约束 Social Story 数据</td><td>构建了视频数据或视频生成器</td></tr><tr><td>若干 2B–8B 模型经 SFT 后文本指标和人评安全性提升</td><td>生成故事能改善儿童行为、焦虑或社交能力</td></tr><tr><td>三名受训心理学学生参与模型输出人评</td><td>完成了临床专家共识、儿童用户研究或随机对照试验</td></tr><tr><td>可用作专业人员的创作辅助与候选脚本</td><td>可自动替代教师、治疗师、心理师或照护者决策</td></tr></tbody></table></section>
+
+<section id="motivation"><h2>2. 动机与相关工作脉络</h2><div class="intuition"><div class="label">生活化直觉</div><p>普通睡前故事追求有趣；Social Story 更像一份为某个孩子、某个具体情境写的“温和预演”。一句看似自然的“你必须马上……”可能过度命令；一个含糊比喻也可能造成额外理解负担。</p></div>
+<p>Social Stories 由 Carol Gray 体系化，用于帮助自闭症个体理解预期或已经发生的社会情境。传统制作依赖专业人员，成本高、主题覆盖有限。通用 LLM 能扩写，却未必遵守叙事结构、描述/指导比例、人称、积极耐心语气和精确词汇等约束。</p>
+<div class="mermaid">timeline
+    title 从专家手写到受约束 LLM 生成
+    1993 : Gray & Garand 提出 Social Stories
+    2010 : Gray 10.2 Tutorial 形成写作准则
+    2020s : LLM 个性化故事与 synthetic data 扩增
+    2024 : SS-GEN arXiv 提出 STARSOW 与质量清单
+    2025 : AAAI Oral，系统评测 2B–8B SFT</div>
+<p>SS-GEN 结合了两条研究线：一条是 story generation 与个性化叙事；另一条是用强 LLM 生成监督数据，再微调较小的开放模型。它的独特点是让“数据扩增”服从 Social Story 的专业写作约束，并把约束变成显式评估表。</p><div class="takeaway">具体缺口不是缺故事，而是缺少可规模化、又不轻易破坏 Social Story 专业约束的生成与质检流程。</div></section>
+
+<section id="bigpicture"><h2>3. 方法总览：一棵逐层生长、持续修剪的“星树”</h2><p>输入不是儿童档案，而是人工 seed stories。STARSOW 先把 14 个 seed chapter 解释成 chapter–explanation root；再通过 few-shot 扩出新主题；每个主题向下生成至少 70 个具体 intervention title；最后在结构、描述取向和情境安全约束下生成 200–300 词故事，并通过 ROUGE-L、规则和人工复核“修剪”。</p>
+<p>得到 5,085 对 $(x,y)$ 后，作者以 8:1:1 划分训练、验证、测试集，使用 PEFT/LoRA 在 4 张 RTX 4090 上微调 Gemma、Mistral、Llama 3 的 2B–8B 模型。评测包含 BLEU/ROUGE/BERTScore、GPT-4 五维评分，以及三名受训心理学学生的 SC/DO/SS 评分。</p>
+<div class="intuition"><div class="label">一句话核心</div><p>先扩“问题空间”，再写具体故事，并在每一层过滤；避免让模型一次从空白跳到全文。</p></div>
+<div class="mermaid">flowchart LR
+  A[14 chapters / 179 人工 stories] --> B[Taking Root<br/>解释并扩 chapter]
+  B --> C[Branching Out<br/>每章扩 intervention titles]
+  C --> D[Bearing Star Fruits<br/>按约束写完整 story]
+  D --> E[Gardening Work<br/>ROUGE-L + 规则 + 人工过滤]
+  E --> F[57 chapters / 5,085 pairs]
+  F --> G[LoRA SFT 2B–8B LMs]
+  G --> H[文本与质量评测]</div><p class="mermaid-cap">依据论文 Figure 2 与 Sections “Dataset Construction / Experiments” 重绘。</p></section>
+
+<section id="notation"><h2>4. 符号表</h2><table class="notation"><thead><tr><th>符号</th><th>含义</th><th>形状 / 范围</th></tr></thead><tbody><tr><td>$M$</td><td>待生成 Social Story 的语言模型</td><td>函数</td></tr><tr><td>$x$</td><td>故事 title，也是 intervention goal</td><td>文本</td></tr><tr><td>$y$</td><td>introduction + body + conclusion 组成的 story content</td><td>文本</td></tr><tr><td>$(c_t,e_t)$</td><td>第 $t$ 个 chapter 及其 explanation</td><td>root node</td></tr><tr><td>$(x_{t,j},y_{t,j})$</td><td>章节 $t$ 下第 $j$ 个 title–story pair</td><td>$j=1,\ldots,n_t$</td></tr><tr><td>$n_t$</td><td>章节 $t$ 下的故事数</td><td>$n_t&gt;1$；最终每章至少 70 titles</td></tr><tr><td>$D,C$</td><td>descriptive 与 coaching sentences 数量</td><td>非负整数</td></tr><tr><td>$R_L(a,b)$</td><td>文本 $a,b$ 的 ROUGE-L 相似度</td><td>$[0,1]$</td></tr><tr><td>SC / DO / SS</td><td>结构清晰、描述取向、情境安全</td><td>SC 1–5；DO/SS Yes–No</td></tr><tr><td>CH/DC/EM/GA/RE</td><td>GPT-4 评的 coherence、descriptiveness、empathy、grammaticality、relevance</td><td>各 1–5</td></tr></tbody></table></section>
+
+<section id="method"><h2>5. 方法详解</h2>
+<h3>5.1 任务形式</h3><div class="intuition"><div class="label">直觉</div><p>title 不只是标题，而是这篇故事要帮助的具体目标，例如“第一次参加消防演习”；模型要围绕目标写完整、前后一致的解释与应对。</p></div><div class="eq-card"><div class="eq">$$M(x)=y$$</div><dl class="eq-explain"><dt>是什么</dt><dd>语言模型 $M$ 读取 intervention title $x$，生成 story content $y$。</dd><dt>逐符号</dt><dd>$y$ 明确含 introduction、main body、conclusion；title 不属于 $y$，但与它组成训练 pair $(x,y)$。</dd><dt>为什么还需要框架</dt><dd>这个公式本身没有约束。普通提示可能得到结构漂亮却过度命令、含糊或不安全的文本；STARSOW 与质量清单承担约束。</dd></dl></div>
+
+<h3>5.2 Taking Root：先扩主题，再扩故事</h3><div class="intuition"><div class="label">直觉</div><p>如果一直从同一批标题改写，数据只是同义复述。先让模型解释“这一章处理什么困难、为什么重要”，再据解释扩新主题，覆盖面才真正向外生长。</p></div>
+<p>seed set 含 14 chapters 和 179 篇人工故事。作者先让 LLM 解释 seed chapters；生成新 root 时，每次随机取 8 个 chapter–explanation few-shot：4 个来自人工 seed，4 个来自此前新生成节点，以同时保持规范与多样性。</p>
+<div class="eq-card"><div class="eq">$$\mathcal R=\{(c_t,e_t)\}_{t=1}^{T},\qquad \mathcal S_t=\{(x_{t,j},y_{t,j})\}_{j=1}^{n_t}$$</div><dl class="eq-explain"><dt>是什么</dt><dd>这是对论文文字定义的显式整理：数据是 root 集合 $\mathcal R$ 与每个 root 下的 story pairs $\mathcal S_t$。</dd><dt>注意</dt><dd>该集合写法用于帮助理解，不是论文编号公式；没有引入新算法。</dd></dl></div>
+
+<h3>5.3 Branching Out：把宽主题拆成可执行目标</h3><p>每个新 root 之下，模型参考 8 个随机 “chapter–explanation–titles” 示例生成多样 title。chapter 如 “Managing Emotions” 很宽；title 应具体到 “Handling a change in the classroom schedule” 这类可写、可个性化的情境。</p>
+
+<h3>5.4 Bearing Star Fruits：三类约束写全文</h3><div class="intuition"><div class="label">直觉</div><p>好故事不是“多给指令”，而是让读者知道将发生什么、别人为什么这么做、自己有哪些安全选择。描述铺足，指导才能不显得强迫。</p></div>
+<div class="eq-card"><div class="eq">$$\frac{D}{C}\ge 2$$</div><dl class="eq-explain"><dt>是什么</dt><dd>Gray 的 GR-Eight Formula：descriptive sentences 至少是 coaching sentences 的两倍。</dd><dt>逐符号</dt><dd>$D$ 包含客观描述、原因、视角与肯定句；$C$ 是温和、安全的行为指导。</dd><dt>为什么</dt><dd>把故事从命令清单转成情境解释。论文将其作为 DO 的 Yes/No 硬约束。</dd></dl></div>
+<table><thead><tr><th>约束</th><th>论文检查内容</th><th>评分</th></tr></thead><tbody><tr><td>Structural Clarity</td><td>title→introduction→body→conclusion 清楚；三段相互呼应</td><td>4 个问题，1–5 分</td></tr><tr><td>Descriptive Orientation</td><td>$D/C\ge2$</td><td>Yes / No</td></tr><tr><td>Situational Safety</td><td>不用过度直接的第二人称；描述负面行为不用第一人称；积极耐心；表达准确；词汇精确舒适</td><td>6 个子项，全部 Yes 才合格</td></tr></tbody></table>
+
+<h3>5.5 Gardening Work：去重、过滤与人工修剪</h3><div class="intuition"><div class="label">直觉</div><p>生成 5,000 篇不难，难的是不让它们变成 179 篇 seed 的换词版本，也不让边界案例混进最终数据。</p></div><div class="eq-card"><div class="eq">$$\max_{r\in\mathcal D_{existing}}R_L(r_{new},r)&lt;0.7$$</div><dl class="eq-explain"><dt>是什么</dt><dd>新 chapter（以及流程中的去重对象）与已有项的最大 ROUGE-L 必须低于 0.7 才接受。</dd><dt>逐符号</dt><dd>$r_{new}$ 是候选，$\mathcal D_{existing}$ 是已有集合，$R_L$ 基于最长公共子序列衡量文本重合。</dd><dt>局限</dt><dd>低词面重合不等于语义真正不同；高重合也可能是必要的规范句。论文因此还加入无效项过滤与人工复核。</dd></dl></div>
+<div class="bridge">完成数据后，研究问题从“GPT-4 能否造数据”转为“小模型能否用简单 title prompt 学会这些约束”。</div>
+
+<h3>5.6 小模型 SFT</h3><p>模型覆盖 Gemma 2B/7B、Mistral 2B/7B、Llama 3 8B 及 Instruct 变体。作者通过 LLaMA Factory 的 PEFT/LoRA 在 4 张 RTX 4090 上训练。测试时提示被刻意简化为：根据 title 写 200–300 词、简洁清楚、积极支持的 Social Story，以检验数据是否把约束写入模型，而非继续依赖冗长 prompt。</p><div class="takeaway">STARSOW 的主要贡献是数据生产与质量控制；模型侧采用常见 LoRA SFT，并未提出新 Transformer 架构。</div>
+</section>
+
+<section id="walkthrough"><h2>6. 走一遍例子：从“第一次参加消防演习”到可审脚本</h2><ol class="walkthrough"><li class="step"><strong>选 root：</strong>将情境归到 “Coping with Changes / Safety Routines”，并写 explanation：突发铃声、队伍移动和环境变化会带来不确定性。</li><li class="step"><strong>生成 title：</strong><em>Going Through My First Fire Drill at School</em>。title 是明确 intervention goal，而不是宽泛的“School Safety”。</li><li class="step"><strong>生成结构：</strong>Introduction 说明演习目的；Body 描述铃声、教师、排队、出口和可能感受；Conclusion 重申这是练习，成人会提供帮助。</li><li class="step"><strong>检查比例：</strong>假设人工标注出 $D=12$、$C=4$，则 $D/C=3\ge2$，通过 DO。若 $D=6,C=4$，需改写增加解释而非简单删指令。</li><li class="step"><strong>检查安全：</strong>删除“你必须冷静”式第二人称命令，避免把负面行为写成“I scream”；改成准确、可选择、积极耐心的表述。</li><li class="step"><strong>视频化前审批：</strong>教师/照护者补充真实学校出口、铃声、人员和孩子偏好；专业人员批准文本后才分镜。模型不得自行猜这些个性化事实。</li></ol><div class="callout warn"><div class="label">例子性质</div><p>这是按论文约束构造的教学示例，并非论文中报告的具体儿童个案或临床干预结果。</p></div></section>
+
+<section id="experiments"><h2>7. 实验：数字与真正含义</h2>
+<h3>7.1 数据规模</h3><table><thead><tr><th>统计</th><th class="num">值</th></tr></thead><tbody><tr><td>章节</td><td class="num">57</td></tr><tr><td>每章 titles</td><td class="num">≥70</td></tr><tr><td>Social Story pairs</td><td class="num">5,085</td></tr><tr><td>平均 chapter 长度</td><td class="num">2.46 words</td></tr><tr><td>平均 title 长度</td><td class="num">5.28 words</td></tr><tr><td>平均 story content 长度</td><td class="num">281.65 words</td></tr><tr><td>train/val/test</td><td class="num">8:1:1</td></tr></tbody></table>
+<h3>7.2 GPT-3.5 与 GPT-4o 数据合成器比较（100 个 seed titles）</h3><div style="overflow-x:auto"><table><thead><tr><th>检查项</th><th class="num">GPT-3.5</th><th class="num">GPT-4o</th></tr></thead><tbody><tr><td>SC：结构清楚</td><td>82.7%</td><td class="best">83.0%</td></tr><tr><td>SC：引言—主体相关</td><td>86.2%</td><td class="best">86.8%</td></tr><tr><td>SC：主体—结论相关</td><td>82.5%</td><td class="best">83.7%</td></tr><tr><td>SC：结论—引言相关</td><td class="best">84.1%</td><td>82.9%</td></tr><tr><td>DO：描述多于指导</td><td>56.0%</td><td class="best">59.0%</td></tr><tr><td>SS：人称 A</td><td>90.0%</td><td class="best">94.0%</td></tr><tr><td>SS：人称 B</td><td>91.0%</td><td class="best">93.0%</td></tr><tr><td>SS：积极耐心</td><td>97.0%</td><td class="best">98.0%</td></tr><tr><td>SS：准确表达</td><td class="best">91.0%</td><td>90.0%</td></tr><tr><td>SS：精确词汇</td><td class="best">95.0%</td><td>92.0%</td></tr><tr><td>人工偏好</td><td>38.0%</td><td class="best">62.0%</td></tr></tbody></table></div><p>GPT-4o 因总体偏好与多数项更高被选作全量数据合成器。但 59% 的 DO 通过率表明，即便较强模型也频繁违反描述/指导比例；人工过滤不是装饰步骤。</p>
+
+<h3>7.3 SFT 的自动文本指标（Table 4 完整模型行）</h3><div style="overflow-x:auto"><table><thead><tr><th rowspan="2">模型</th><th colspan="5">Zero-shot</th><th colspan="5">SFT</th></tr><tr><th>B-4</th><th>R-1</th><th>R-2</th><th>R-L</th><th>BERT</th><th>B-4</th><th>R-1</th><th>R-2</th><th>R-L</th><th>BERT</th></tr></thead><tbody>
+<tr><td>Gemma 2B</td><td>8.86</td><td>21.81</td><td>4.63</td><td>7.22</td><td>79.0</td><td>51.18</td><td>47.58</td><td>20.13</td><td>27.29</td><td>88.8</td></tr>
+<tr><td>Gemma-Instruct 2B</td><td>31.68</td><td>30.44</td><td>6.49</td><td>14.17</td><td>82.7</td><td>50.35</td><td>46.53</td><td>19.36</td><td>26.93</td><td>88.8</td></tr>
+<tr><td>Gemma-1.1-Instruct 2B</td><td>42.43</td><td>34.98</td><td>8.82</td><td>17.22</td><td>84.9</td><td>51.02</td><td>46.70</td><td>19.53</td><td>27.15</td><td>88.9</td></tr>
+<tr><td>Gemma 7B</td><td>19.24</td><td>32.12</td><td>9.57</td><td>12.48</td><td>81.7</td><td>54.74</td><td>52.12</td><td>24.74</td><td>31.04</td><td>89.9</td></tr>
+<tr><td>Gemma-Instruct 7B</td><td>39.80</td><td>32.56</td><td>8.09</td><td>16.33</td><td>84.1</td><td>53.82</td><td>50.80</td><td>23.34</td><td>30.19</td><td>89.7</td></tr>
+<tr><td>Gemma-1.1-Instruct 7B</td><td>45.64</td><td>37.65</td><td>10.00</td><td>17.87</td><td>84.8</td><td>54.04</td><td>51.04</td><td>23.71</td><td>30.40</td><td>89.8</td></tr>
+<tr><td>Mistral-v0.1 7B</td><td>19.76</td><td>25.78</td><td>5.95</td><td>12.47</td><td>81.6</td><td class="best">54.84</td><td>51.70</td><td>24.07</td><td>30.58</td><td>89.8</td></tr>
+<tr><td>Mistral-v0.1-Instruct 7B</td><td>40.14</td><td>38.23</td><td>11.85</td><td class="best">20.79</td><td>86.5</td><td>54.17</td><td>51.17</td><td>23.79</td><td>30.54</td><td>89.7</td></tr>
+<tr><td>Mistral-v0.2-Instruct 7B</td><td>37.44</td><td>37.70</td><td>11.51</td><td>19.74</td><td>86.3</td><td>54.30</td><td>52.05</td><td class="best">24.75</td><td class="best">31.18</td><td class="best">89.9</td></tr>
+<tr><td>Llama 3 8B</td><td>9.49</td><td>23.46</td><td>5.82</td><td>8.15</td><td>79.3</td><td>16.41</td><td>47.66</td><td>22.20</td><td>9.69</td><td>81.2</td></tr>
+<tr><td>Llama 3-Instruct 8B</td><td>39.04</td><td class="best">41.19</td><td class="best">12.68</td><td>19.37</td><td class="best">85.5</td><td>54.56</td><td>51.26</td><td>23.64</td><td>30.30</td><td>89.7</td></tr>
+</tbody></table></div>
+<p>每个模型前后各推理三次并做 t-test；论文以 † 标示 $p&lt;0.01$。多数行 SFT 全面上升，但 Llama 3 base 的 BLEU-4/ROUGE-L 增幅明显较小，作者推测其 15T 预训练规模可能需要更大、更针对的数据才能充分适配。</p>
+
+<h3>7.4 人评：安全性提升最大，描述取向并非单调变好</h3><table><thead><tr><th>设置</th><th>模型</th><th class="num">SC（1–5）</th><th class="num">DO 合格</th><th class="num">SS 合格</th></tr></thead><tbody><tr><td>SFT</td><td>Gemma 7B</td><td class="best">4.90</td><td>86.7%</td><td class="best">83.3%</td></tr><tr><td>SFT</td><td>Gemma 2B</td><td>4.83</td><td>83.3%</td><td>80.0%</td></tr><tr><td>Zero-shot</td><td>Gemma-1.1-Instruct 7B</td><td>3.89</td><td class="best">93.3%</td><td>10.0%</td></tr><tr><td>Zero-shot</td><td>Gemma-1.1-Instruct 2B</td><td>3.28</td><td>90.0%</td><td>6.0%</td></tr></tbody></table>
+<p>这是最值得商业团队细读的表：SFT 把 SS 从 6–10% 拉到 80–83.3%，结构也明显变好；但 DO 从 zero-shot 的 90–93.3% 降至 83.3–86.7%。因此不能说“所有约束都提升”。三名评价者是接受准则培训的心理学学生；每个设置抽 50 篇 test stories。GPT 与人评相关系数为 0.34–0.54，属于正相关但不足以完全替代人评。</p>
+<details class="dig"><summary>深入（可跳过）：论文没有独立“消融表”</summary><p>这篇论文的对照主要是 zero-shot vs SFT、base vs instruct、2B/7B/8B、GPT-3.5 vs GPT-4o；没有对 STARSOW 四阶段逐一移除的标准 ablation。因此不能声称“去掉某一步下降 X%”。</p></details>
+<div class="takeaway">最强证据是 SFT 对结构与 situational safety 的提升；文本重合分数不能替代专业合规，且 DO 出现反向变化。</div></section>
+
+<section id="video"><h2>8. 从文本论文迁移到特殊教育视频</h2><div class="mermaid">flowchart LR
+  P[儿童/场所真实资料] --> X[SS-GEN 候选脚本]
+  X --> R[教师/治疗师/照护者审校]
+  R --> S[句子级分镜 + 熟悉照片/角色]
+  S --> V[受控视频生成/模板动画]
+  V --> Q[可访问性与事实 QA]
+  Q --> U[小范围试用与反馈]
+  U --> R</div>
+<p>最稳妥的商业产品不是“一键给孩子生成治疗视频”，而是专业人员 workspace：输入真实地点、人物、感官刺激和目标行为；系统生成候选故事并自动跑 SC/DO/SS 检查；专业人员逐句批准；最后才用固定角色、真实场所照片或受控 avatar 生成视频。</p>
+<table><thead><tr><th>小众场景</th><th>付费方</th><th>可落地 MVP</th><th>证据缺口</th></tr></thead><tbody><tr><td>博物馆/机场/医院“访问前 visual story”</td><td>场馆无障碍与客户体验部门</td><td>固定场所路线 + 多个感官/排队情境版本</td><td>SS-GEN 未研究视频；需要场馆与用户测试</td></tr><tr><td>特教教师备课</td><td>学校/学区/特教 SaaS</td><td>标题→候选故事→规则高亮→人工签发→模板视频</td><td>未证明节省多少工时或学习效果</td></tr><tr><td>牙科、影像检查、采血预演</td><td>儿童医院/诊所</td><td>仅描述流程与可选择支持，不给医疗建议</td><td>需临床与无障碍团队共审；无疗效证据</td></tr><tr><td>企业 neurodiversity onboarding</td><td>HR / L&amp;D</td><td>办公情境预演、政策变化说明</td><td>数据面向 autistic youth，成人域需重新验证</td></tr></tbody></table>
+<div class="callout warn"><div class="label">证据边界</div><p><strong>SS-GEN 不是视频生成论文，也不是临床疗效研究。</strong>它只能为视频产品提供脚本生成与约束检查方法。视频偏好不等于理解，理解也不等于行为或临床改善；三者需要不同研究设计。</p></div></section>
+
+<section id="limits"><h2>9. 局限与风险</h2><ul><li><strong>未与目标儿童共同评测：</strong>主要人评来自 3 名受训心理学学生，论文没有儿童或家庭用户研究。</li><li><strong>指标代理性：</strong>BLEU/ROUGE 奖励接近 reference 的措辞，但个性化故事存在多种正确表达；高分可能来自模板化。</li><li><strong>DO 不稳定：</strong>SFT 人评 descriptive orientation 低于 zero-shot，对“数据教会所有约束”的解释要克制。</li><li><strong>人工过滤不可省：</strong>论文题目强调生成，但最终数据质量依赖 rigorous human filtering；商业成本模型必须计入专业审核。</li><li><strong>个性化隐私：</strong>真实产品会处理儿童、家庭、学校和医疗场景信息；论文数据集并未解决隐私、同意和保留策略。</li><li><strong>商标与准则：</strong>“Social Story™”与 Gray 的 10.2 criteria 有明确专业语境，产品命名和宣称需独立审查。</li><li><strong>视频新增风险：</strong>模型脚本正确，不代表画面中的人物、路线、情绪或危险动作正确；视觉层需要第二套 QA。</li></ul></section>
+
+<section id="repro"><h2>10. 复现指南（仅整理官方命令，未执行）</h2><p>官方仓库提供数据生成脚本、Technical Appendix 和 Hugging Face 数据；README 未给论文 LoRA SFT 的完整配置/命令，也未公开 SFT 权重。以下命令按官方 README 抄录整理。</p>
+<h3>10.1 环境与数据加载</h3><pre><code>git clone https://github.com/MIMIFY/SS-GEN.git
+cd SS-GEN
+pip install openai tqdm numpy pandas rouge-score datasets
+
+python - &lt;&lt;'PY'
+from datasets import load_dataset
+ds = load_dataset("FMiMiY/SS-GEN")
+print(ds)
+PY</code></pre><p>Hugging Face 页面要求登录时，先执行 <code>huggingface-cli login</code> 并接受数据访问条件。</p>
+<h3>10.2 STARSOW 生成流程</h3><pre><code># README 原文写成 `seed_ main.py`（含空格，疑似文件名排版错误）；
+# 运行前请先核对仓库内实际文件名。
+cd seed_data_gen
+python seed_ main.py
+
+cd ../hierarchical_instruct
+python bootstrap_chapters_breadth.py \
+  --seed_stories_path ../seed_data_gen/seed_data/seed_chapters_explanations.jsonl \
+  --batch_dir data/gpt4_test_generations \
+  --num_chapters_to_generate 56 \
+  --engine gpt-4o \
+  --api_key YOUR_API_KEY \
+  --base_url YOUR_BASE_URL
+
+python bootstrap_titles_breadth_depth.py \
+  --seed_stories_path ../seed_data_gen/seed_data/seed_chapter_title_list.jsonl \
+  --input_file machine_generated_chapters_explanations.jsonl \
+  --batch_dir data/gpt4_test_generations \
+  --num_titles_to_generate 70 \
+  --engine gpt-4o \
+  --api_key YOUR_API_KEY \
+  --base_url YOUR_BASE_URL
+
+python bootstrap_stories_depth.py \
+  --seed_stories_path ../seed_data_gen/seed_data/seed_chapter_story_list.jsonl \
+  --input_folder "Titles generation" \
+  --batch_dir data/gpt4_test_generations \
+  --output_seed_folder "Stories generation/Seed_Titles" \
+  --output_expand_folder "Stories generation/Generated_Titles_from_gpt4" \
+  --engine gpt-4o \
+  --api_key YOUR_API_KEY \
+  --base_url YOUR_BASE_URL</code></pre>
+<h3>10.3 SFT 复现缺口</h3><p>论文说明用 LLaMA Factory、PEFT/LoRA 和 4× RTX 4090，但仓库 README 没给可直接复现 Table 4 的 YAML、learning rate、LoRA rank、epoch、seed 与评测脚本命令。可靠复现应固定官方数据 split、三次 inference、paired t-test（$\alpha=0.05$，论文 † 表示 $p&lt;0.01$），并单独实现 SC/DO/SS 人评界面。</p>
+<details class="dig"><summary>资源与常见坑</summary><ul><li><a href="https://github.com/MIMIFY/SS-GEN">官方仓库</a>：9 commits、含 Technical Appendix、生成脚本与数据目录。</li><li><a href="https://huggingface.co/datasets/FMiMiY/SS-GEN">HF 数据集</a>：官方 README 推荐加载入口。</li><li>不要把 OpenAI API 生成当作完全可复现：模型版本、日期和服务端更新会改变结果。</li><li>ROUGE-L 去重不能代替专业质量审核；复现 5,085 条规模需预算 API 与人工审查成本。</li><li>仓库 README 的种子脚本文件名存在可见空格/拼写问题，复制命令前应先查看目录。</li></ul></details></section>
+
+<section id="faq" class="faq"><h2>11. 常见疑问</h2><details><summary>SS-Bench 和 SS-GEN 是什么关系？</summary><p>SS-Bench 是 2024 年 arXiv v1 的原始标题，SS-GEN 是 AAAI 2025 正式版名称。本页以正式版为主，早期标题用于帮助检索；它们都研究 Social Story 文本，均非视频 benchmark。</p></details><details><summary>BLEU-4 从 8.86 到 51.18 是否说明故事更适合儿童？</summary><p>只说明输出更接近测试 reference 的 n-gram。适龄、个体适配与干预效果要靠目标用户和专业人员研究。</p></details><details><summary>既然人评 SS 提升到 83.3%，能否自动发布？</summary><p>不能。仍有约 1/6 输出未通过全部 SS 子项，而且样本、人评者和场景有限。它适合作为候选生成器与 QA 助手。</p></details><details><summary>为什么先做脚本再做视频？</summary><p>视频会把文本错误固化并加入新的视觉事实。脚本先过 SC/DO/SS 和个案事实审校，后续分镜才有稳定 source of truth。</p></details></section>
+<section id="glossary"><h2>12. 术语表</h2><dl class="glossary"><dt>Social Story™</dt><dd>遵循 Carol Gray 准则、帮助理解特定社会情境的个性化故事；不是泛指任何社交故事。</dd><dt>STARSOW</dt><dd>Taking Root、Branching Out、Bearing Star Fruits、Gardening Work 四阶段层级数据生成策略。</dd><dt>Structural Clarity</dt><dd>标题、引言、主体、结论结构清楚并相互呼应。</dd><dt>Descriptive Orientation</dt><dd>描述与解释多于直接指导，论文以 $D/C\ge2$ 检查。</dd><dt>Situational Safety</dt><dd>人称、语气、准确表达与精确词汇等安全要求。</dd><dt>PEFT / LoRA</dt><dd>参数高效微调方法，只训练低秩适配参数以降低成本。</dd><dt>BERTScore</dt><dd>基于 contextual embedding 的文本语义相似度，仍是 reference-based 代理指标。</dd></dl></section>
+<section><h2>核读来源</h2><p>本页依据 AAAI 2025 正式论文（39(2):1300–1308）、arXiv 2406.15695、官方 GitHub README、Technical Appendix 入口与 Hugging Face 数据页整理。精确数字来自 Tables 2–6。最后核查：2026-10-12；命令仅引用，未执行。</p></section>
+</main></body></html>
